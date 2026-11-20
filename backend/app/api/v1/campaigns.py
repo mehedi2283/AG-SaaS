@@ -5,10 +5,12 @@ from uuid import UUID
 import asyncpg
 from fastapi import APIRouter, Depends, Response, status
 
-from app.api.deps import tenant_db
+from app.api.deps import get_queue, tenant_db
 from app.core.auth import TenantContext, current_tenant, require_role
+from app.core.config import Settings, app_settings
 from app.domain.campaigns import service
 from app.domain.campaigns.schemas import CampaignIn, CampaignOut, CampaignUpdate, StepOut, StepsIn
+from app.queue import JobQueue
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -71,3 +73,37 @@ async def save_steps(
     conn: asyncpg.Connection = Depends(tenant_db),
 ) -> list[StepOut]:
     return await service.save_steps(conn, ctx, campaign_id, body)
+
+
+@router.post("/{campaign_id}/launch", status_code=status.HTTP_202_ACCEPTED)
+async def launch(
+    campaign_id: UUID,
+    ctx: TenantContext = Depends(require_role("admin")),
+    conn: asyncpg.Connection = Depends(tenant_db),
+    settings: Settings = Depends(app_settings),
+    queue: JobQueue = Depends(get_queue),
+) -> CampaignOut:
+    """Create the campaign in Instantly/HeyReach and push every ready buyer. Run again to add newly ready ones."""
+    return await service.request_launch(conn, ctx, settings, queue, campaign_id)
+
+
+@router.post("/{campaign_id}/pause", status_code=status.HTTP_202_ACCEPTED)
+async def pause(
+    campaign_id: UUID,
+    ctx: TenantContext = Depends(require_role("member")),
+    conn: asyncpg.Connection = Depends(tenant_db),
+    queue: JobQueue = Depends(get_queue),
+) -> Response:
+    await service.request_running(conn, ctx, queue, campaign_id, running=False)
+    return Response(status_code=status.HTTP_202_ACCEPTED)
+
+
+@router.post("/{campaign_id}/resume", status_code=status.HTTP_202_ACCEPTED)
+async def resume(
+    campaign_id: UUID,
+    ctx: TenantContext = Depends(require_role("admin")),
+    conn: asyncpg.Connection = Depends(tenant_db),
+    queue: JobQueue = Depends(get_queue),
+) -> Response:
+    await service.request_running(conn, ctx, queue, campaign_id, running=True)
+    return Response(status_code=status.HTTP_202_ACCEPTED)

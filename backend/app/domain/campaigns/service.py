@@ -8,8 +8,10 @@ from uuid import UUID
 import asyncpg
 
 from app.core.auth import TenantContext
+from app.core.config import Settings
 from app.core.errors import Conflict, Forbidden, NotFound, Unprocessable
 from app.domain.audit.repo import record
+from app.domain.billing.service import ensure_access
 from app.domain.campaigns import repo
 from app.domain.campaigns.schemas import (
     CampaignCounts,
@@ -20,6 +22,7 @@ from app.domain.campaigns.schemas import (
     StepOut,
     StepsIn,
 )
+from app.queue import QUEUE_SYNC, JobQueue
 
 # The angles the n8n workflows used (docs/status.md), as the starting sequence for a new campaign.
 DEFAULT_STEPS: dict[Channel, list[tuple[int, str]]] = {
@@ -165,3 +168,63 @@ async def delete_campaign(conn: asyncpg.Connection, ctx: TenantContext, campaign
     if not await repo.delete_campaign(conn, campaign_id):
         raise Forbidden("You need the admin role to delete campaigns.", code="insufficient_role")
     await record(conn, ctx, "campaign.deleted", target_table="campaigns", target_id=campaign_id)
+
+
+async def request_launch(
+    conn: asyncpg.Connection, ctx: TenantContext, settings: Settings, queue: JobQueue, campaign_id: UUID
+) -> CampaignOut:
+    """Check everything a launch needs, then hand it to the sync worker (provider calls never run in the API)."""
+    current = await get_campaign(conn, campaign_id)
+    if current.launch_status == "launching":
+        raise Conflict("This campaign is already launching.", code="campaign_launching")
+    await ensure_access(conn, settings)
+    provider = "instantly" if current.channel == "email" else "heyreach"
+    if not await conn.fetchval("select exists(select 1 from public.integrations where provider = $1)", provider):
+        raise Unprocessable(f"Connect {provider.title()} in Settings first.", code=f"{provider}_not_connected")
+    sender = await conn.fetchrow(
+        "select instantly_eaccount, heyreach_account_id from public.sender_identities where id = $1",
+        current.sender_identity_id,
+    )
+    if sender is None:
+        raise Unprocessable("Choose who the campaign sends as.", code="sender_missing")
+    if current.channel == "email" and not sender["instantly_eaccount"]:
+        raise Unprocessable("The sender needs its Instantly mailbox (Settings, Senders).", code="sender_no_mailbox")
+    if current.channel == "linkedin" and not sender["heyreach_account_id"]:
+        raise Unprocessable(
+            "The sender needs its HeyReach LinkedIn account (Settings, Senders).", code="sender_no_linkedin_account"
+        )
+    if current.counts.ready == 0:
+        raise Conflict("No buyers are ready yet. Write their messages first.", code="nothing_ready")
+    stamp = await conn.fetchval("select extract(epoch from now())::bigint")
+    await queue.enqueue(
+        "launch_campaign", ctx.tenant_id, str(campaign_id), job_id=f"launch:{campaign_id}:{stamp}", queue=QUEUE_SYNC
+    )
+    await record(
+        conn,
+        ctx,
+        "campaign.launch_requested",
+        target_table="campaigns",
+        target_id=campaign_id,
+        diff={"ready": current.counts.ready},
+    )
+    return current
+
+
+async def request_running(
+    conn: asyncpg.Connection, ctx: TenantContext, queue: JobQueue, campaign_id: UUID, *, running: bool
+) -> None:
+    current = await get_campaign(conn, campaign_id)
+    if current.launch_status != "launched":
+        raise Conflict("Only a launched campaign can be paused or resumed.", code="campaign_not_launched")
+    stamp = await conn.fetchval("select extract(epoch from now())::bigint")
+    await queue.enqueue(
+        "set_campaign_running",
+        ctx.tenant_id,
+        str(campaign_id),
+        "true" if running else "false",
+        job_id=f"run:{campaign_id}:{stamp}",
+        queue=QUEUE_SYNC,
+    )
+    await record(
+        conn, ctx, "campaign.resumed" if running else "campaign.paused", target_table="campaigns", target_id=campaign_id
+    )

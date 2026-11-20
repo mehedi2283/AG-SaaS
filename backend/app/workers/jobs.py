@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.domain.campaigns.launch import launch_campaign, set_campaign_running
 from app.domain.generation.jobs import generate_campaign, generate_lead_sequence
 from app.domain.leads.importer import import_leads
 
-ALL: list[Any] = [import_leads, generate_campaign, generate_lead_sequence]
+ALL: list[Any] = [import_leads, generate_campaign, generate_lead_sequence, launch_campaign, set_campaign_running]
