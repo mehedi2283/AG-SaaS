@@ -17,9 +17,17 @@ From the `AG-SaaS` folder, with Docker Desktop open:
 powershell -ExecutionPolicy Bypass -File infra/dev-setup.ps1
 ```
 
-It starts Supabase, writes `infra/.env`, starts Redis and the API, creates the demo user
-`demo@gazi.local` (password `gazi-demo-password`) and prints a sign-in token. Run it again any time for a
-fresh token. The manual steps below do the same thing by hand.
+It starts Supabase, writes `infra/.env` and `frontend/.env.local`, starts Redis and the API, creates the
+demo user `demo@gazi.local` (password `gazi-demo-password`) and prints a sign-in token. Run it again any
+time for a fresh token. The manual steps below do the same thing by hand.
+
+Then start the app in a second PowerShell window and open <http://localhost:3000>:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ## First time
 

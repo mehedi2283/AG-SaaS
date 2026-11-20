@@ -60,6 +60,15 @@ $lines = Set-EnvValue $lines "GAZI_DEV_ANON_KEY" $status["ANON_KEY"]
 Set-Content -Path $EnvFile -Value $lines -Encoding ascii
 Write-Host "Saved $EnvFile (git ignores this file)."
 
+$frontendEnv = @(
+    "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY=$($status["ANON_KEY"])",
+    "NEXT_PUBLIC_API_PUBLIC_URL=http://localhost:8000",
+    "GAZI_API_URL=http://localhost:8000"
+)
+Set-Content -Path "frontend/.env.local" -Value $frontendEnv -Encoding ascii
+Write-Host "Saved frontend/.env.local (git ignores this file)."
+
 Step "4/5 Starting Redis and the API"
 docker compose -f infra/docker-compose.dev.yml up -d --build --force-recreate
 if ($LASTEXITCODE -ne 0) { Fail "The API didn't start. See the message above." }
@@ -94,7 +103,9 @@ try {
 }
 
 Write-Host ""
-Write-Host "Gazi is running." -ForegroundColor Green
+Write-Host "Gazi's API is running." -ForegroundColor Green
+Write-Host "  The app:   in a second PowerShell window run:  cd frontend; npm install; npm run dev"
+Write-Host "             then open http://localhost:3000 and sign in as the demo user"
 Write-Host "  API docs:  http://localhost:8000/docs   (click Authorize and paste the token below)"
 Write-Host "  Studio:    http://localhost:54323       (browse every table)"
 Write-Host "  Demo user: $DemoEmail / $DemoPassword"

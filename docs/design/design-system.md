@@ -49,3 +49,19 @@ Build notes (from the screenshot review)
 - Drafts auto-size to their content, and are measured again once fonts load.
 - Prototype: `docs/design/prototype.html` (open it in a browser; the screens are Replies, Campaigns,
   Campaign, Leads and Settings).
+
+## v2: the production frontend ("very clean and elegant")
+
+Changes from the prototype, decided before building:
+- One white surface instead of grey desk + white panes. The side rail is the only tinted area (#F8F7FA).
+  Panes are separated by hairlines (#ECEBF0), never boxed; no shadows except on the open menu.
+- Base size 15px (was 14) with more air: 48px page gutter, 32px between sections, row height ~64px.
+- Weights limited to 400 / 500 / 600. Titles are 28px/600 grotesk, tight tracking.
+- The one bold element stays the letter: people's words in Source Serif 4. It also appears on the
+  sign-in page as a buyer's reply, so the product's idea is the first thing anyone sees.
+- Empty screens are written as invitations ("Replies from buyers will appear here") with one action.
+- Lists are rows, not cards. Settings is a single column of rows, each with one clear action.
+
+Review against generic defaults: white + violet is common for SaaS, so the identity has to come from the
+letter treatment and the restraint, not colour. Cut from the first sketch: a coloured header band on
+settings, icon badges beside every provider, and a stat strip on the replies page. They added noise.
