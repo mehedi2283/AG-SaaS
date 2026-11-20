@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gazi prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --desk: #F5F5F8;
+  --paper: #FFFFFF;
+  --ink: #201D29;
+  --ink-2: #5D5A69;
+  --rule: #E4E3EA;
+  --violet: #6A2CC9;
+  --violet-press: #5A22AE;
+  --violet-wash: #F0E9FB;
+  --interested: #17734A;
+  --question: #2451A6;
+  --ooo: #93600A;
+  --unsub: #B42318;
+
+  --sans: "Schibsted Grotesk", system-ui, sans-serif;
+  --serif: "Source Serif 4", Georgia, serif;
+
+  --t-12: 0.75rem; --t-13: 0.8125rem; --t-14: 0.875rem;
+  --t-16: 1rem; --t-20: 1.25rem; --t-26: 1.625rem;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--desk);
+  color: var(--ink);
+  font: 400 var(--t-14)/1.45 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+button, select, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+h1, h2, h3, p { margin: 0; }
+
+/* ---------- shell ---------- */
+.shell { display: grid; grid-template-columns: 216px 1fr; height: 100vh; }
+
+.nav {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 20px 12px;
+  border-right: 1px solid var(--rule);
+}
+.wordmark { font-weight: 700; font-size: var(--t-20); letter-spacing: -0.02em; padding: 0 10px 2px; }
+.workspace {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 10px 0 18px; padding: 8px 10px;
+  border: 1px solid var(--rule); border-radius: 6px; background: var(--paper);
+  font-weight: 500; cursor: pointer; text-align: left;
+}
+.workspace small { display: block; color: var(--ink-2); font-weight: 400; font-size: var(--t-12); }
+.nav a {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 10px; border-radius: 6px;
+  color: var(--ink-2); text-decoration: none; font-weight: 500;
+}
+.nav a:hover { color: var(--ink); background: #ECEBF1; }
+.nav a[aria-current="page"] { color: var(--ink); background: var(--paper); box-shadow: inset 0 0 0 1px var(--rule); }
+.nav .count { font-size: var(--t-12); color: var(--violet); font-weight: 600; margin-left: 8px; }
+.nav .me { margin-top: auto; padding: 10px; color: var(--ink-2); font-size: var(--t-13); }
+
+.view { display: none; min-width: 0; height: 100vh; overflow: auto; }
+.view.is-active { display: block; }
+.view-replies.is-active { display: grid; grid-template-columns: minmax(280px, 340px) 1fr; overflow: hidden; }
+
+.page { max-width: 1040px; padding: 32px 40px 64px; }
+.page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 24px; }
+.page-head h1 { font-size: var(--t-26); font-weight: 600; letter-spacing: -0.015em; line-height: 1.15; }
+.page-head p { color: var(--ink-2); margin-top: 6px; }
+
+/* ---------- controls ---------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 14px; border-radius: 6px;
+  border: 1px solid var(--rule); background: var(--paper);
+  font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.btn:hover { border-color: #CFCDD8; }
+.btn-primary { background: var(--violet); border-color: var(--violet); color: #fff; }
+.btn-primary:hover { background: var(--violet-press); border-color: var(--violet-press); }
+.btn-quiet { border-color: transparent; background: transparent; color: var(--ink-2); }
+.btn-quiet:hover { color: var(--ink); border-color: transparent; background: #ECEBF1; }
+.select {
+  height: 34px; padding: 0 30px 0 10px; border-radius: 6px;
+  border: 1px solid var(--rule); background: var(--paper);
+  appearance: none; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-2) 50%), linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+  background-position: right 14px center, right 9px center;
+  background-size: 5px 5px; background-repeat: no-repeat;
+}
+
+.intent { font-weight: 600; font-size: var(--t-13); }
+.intent[data-intent="interested"] { color: var(--interested); }
+.intent[data-intent="question"] { color: var(--question); }
+.intent[data-intent="out_of_office"] { color: var(--ooo); }
+.intent[data-intent="unsubscribe"] { color: var(--unsub); }
+.intent[data-intent="not_interested"],
+.intent[data-intent="referral"],
+.intent[data-intent="other"] { color: var(--ink-2); }
+
+/* ---------- replies ---------- */
+.queue { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--rule); background: var(--paper); }
+.queue-head { padding: 20px 20px 12px; border-bottom: 1px solid var(--rule); }
+.queue-head h1 { font-size: var(--t-20); font-weight: 600; letter-spacing: -0.01em; }
+.tabs { display: flex; gap: 4px; margin-top: 12px; }
+.tab {
+  border: 0; background: none; padding: 5px 10px; border-radius: 6px;
+  color: var(--ink-2); font-weight: 500; cursor: pointer;
+}
+.tab[aria-selected="true"] { background: var(--violet-wash); color: var(--violet); }
+.queue-list { list-style: none; margin: 0; padding: 0; overflow: auto; }
+.queue-item {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 12px;
+  width: 100%; padding: 14px 20px; border: 0; border-bottom: 1px solid var(--rule);
+  background: none; text-align: left; cursor: pointer;
+}
+.queue-item:hover { background: #FAFAFC; }
+.queue-item[aria-current="true"] { background: var(--violet-wash); box-shadow: inset 3px 0 0 var(--violet); }
+.queue-item .who { font-weight: 600; }
+.queue-item time { color: var(--ink-2); font-size: var(--t-12); }
+.queue-item .snippet {
+  grid-column: 1 / -1; color: var(--ink-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.thread { overflow: auto; min-width: 0; }
+.thread-inner { max-width: 720px; padding: 28px 40px 48px; }
+.thread-head h2 { font-size: var(--t-20); font-weight: 600; letter-spacing: -0.01em; }
+.thread-head p { color: var(--ink-2); margin-top: 4px; }
+
+.ours {
+  margin-top: 24px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+}
+.ours summary {
+  list-style: none; cursor: pointer; padding: 12px 0;
+  display: flex; justify-content: space-between; gap: 16px; color: var(--ink-2);
+}
+.ours summary::-webkit-details-marker { display: none; }
+.ours summary strong { color: var(--ink); font-weight: 500; }
+.ours[open] summary .toggle::after { content: "Hide"; }
+.ours summary .toggle::after { content: "Show"; }
+.ours .letter { padding-bottom: 16px; color: var(--ink-2); }
+
+.letter { font: 400 var(--t-16)/1.62 var(--serif); max-width: 62ch; }
+.letter p + p { margin-top: 0.85em; }
+
+.block { margin-top: 28px; }
+.block-label { font-size: var(--t-13); color: var(--ink-2); margin-bottom: 10px; }
+.block-label b { color: var(--ink); font-weight: 600; }
+
+.draft {
+  border: 1px solid var(--rule); border-radius: 8px; background: var(--paper);
+}
+.draft-body {
+  display: block; width: 100%; min-height: 120px; padding: 18px 20px 22px;
+  border: 0; border-radius: 8px 8px 0 0; resize: none; overflow: hidden; background: transparent;
+  font: 400 var(--t-16)/1.62 var(--serif);
+}
+.draft-body:focus-visible { outline-offset: -2px; }
+.link-note {
+  display: flex; gap: 10px; align-items: baseline;
+  margin: 0 20px; padding: 12px 0; border-top: 1px dashed var(--rule);
+  font-size: var(--t-13); color: var(--ink-2);
+}
+.link-note .mark { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--rule); transform: translateY(1px); }
+.link-note[data-on="true"] .mark { background: var(--interested); }
+.link-note a { color: var(--violet); }
+.draft-foot {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  padding: 12px 16px; border-top: 1px solid var(--rule); background: #FBFBFD; border-radius: 0 0 8px 8px;
+}
+.draft-foot label { color: var(--ink-2); font-size: var(--t-13); }
+.draft-foot .spacer { flex: 1; }
+.why { margin-top: 10px; font-size: var(--t-13); color: var(--ink-2); }
+
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 12px);
+  padding: 10px 16px; border-radius: 6px; background: var(--ink); color: #fff;
+  opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s;
+}
+.toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- tables ---------- */
+.table { width: 100%; border-collapse: collapse; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.table th, .table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--rule); }
+.table th { font-weight: 500; color: var(--ink-2); font-size: var(--t-13); background: #FBFBFD; }
+.table tr:last-child td { border-bottom: 0; }
+.table td.num, .table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.queue-item time, .nav .count { font-variant-numeric: tabular-nums; }
+.table a { color: var(--ink); font-weight: 600; text-decoration: none; }
+.table a:hover { color: var(--violet); }
+.table .sub { display: block; color: var(--ink-2); font-size: var(--t-13); font-weight: 400; }
+.status { font-size: var(--t-13); font-weight: 500; }
+.status::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; background: var(--ink-2); transform: translateY(-1px); }
+.status[data-s="active"]::before { background: var(--interested); }
+.status[data-s="paused"]::before { background: var(--ooo); }
+
+/* ---------- campaign ---------- */
+.back { display: inline-block; margin-bottom: 14px; color: var(--ink-2); text-decoration: none; font-weight: 500; }
+.back:hover { color: var(--ink); }
+.summary {
+  font-size: var(--t-20); line-height: 1.5; letter-spacing: -0.005em; max-width: 46ch; margin-bottom: 36px;
+}
+.summary b { font-weight: 600; }
+.summary .g { color: var(--interested); }
+.section-title { font-size: var(--t-16); font-weight: 600; margin: 32px 0 12px; }
+.steps { list-style: none; margin: 0; padding: 0; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); }
+.step { display: grid; grid-template-columns: 76px 1fr; border-bottom: 1px solid var(--rule); }
+.step:last-child { border-bottom: 0; }
+.step-n { padding: 16px 0 16px 18px; color: var(--ink-2); font-weight: 600; }
+.step-n small { display: block; font-weight: 400; font-size: var(--t-12); }
+.step-body { padding: 16px 20px 16px 0; }
+.step-body h3 { font-size: var(--t-14); font-weight: 600; }
+.step-body .subject { color: var(--ink-2); margin-top: 2px; }
+.step-body .letter { margin-top: 10px; font-size: var(--t-14); color: var(--ink); }
+.settings-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); }
+.settings-grid div { padding: 14px 18px; border-right: 1px solid var(--rule); }
+.settings-grid div:last-child { border-right: 0; }
+.settings-grid dt { color: var(--ink-2); font-size: var(--t-13); }
+.settings-grid dd { margin: 2px 0 0; font-weight: 500; }
+
+/* ---------- leads ---------- */
+.drop {
+  display: grid; place-items: center; text-align: center; gap: 6px;
+  padding: 36px 24px; border: 1.5px dashed #CFCDD8; border-radius: 8px; background: var(--paper);
+}
+.drop strong { font-size: var(--t-16); font-weight: 600; }
+.drop p { color: var(--ink-2); max-width: 52ch; }
+.drop .btn { margin-top: 10px; }
+.review {
+  margin-top: 32px; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper);
+}
+.review-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 18px; border-bottom: 1px solid var(--rule); }
+.review-head h2 { font-size: var(--t-16); font-weight: 600; }
+.review-head p { color: var(--ink-2); margin-top: 2px; }
+.dupe { display: grid; grid-template-columns: 1fr 1fr auto; gap: 16px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--rule); }
+.dupe:last-child { border-bottom: 0; }
+.dupe .label { color: var(--ink-2); font-size: var(--t-12); }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-right: 1px solid var(--rule); background: var(--paper); padding: 6px 10px; cursor: pointer; color: var(--ink-2); font-weight: 500; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--violet-wash); color: var(--violet); }
+
+/* ---------- responsive ---------- */
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto; }
+  .nav { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--rule); }
+  .workspace, .nav .me { display: none; }
+  .wordmark { padding-right: 12px; }
+  .view, .view-replies.is-active { height: auto; overflow: visible; }
+  .view-replies.is-active { grid-template-columns: 1fr; }
+  .queue { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .queue-list { max-height: 260px; }
+  .thread-inner, .page { padding: 20px 16px 48px; }
+  .settings-grid { grid-template-columns: 1fr; }
+  .settings-grid div { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .dupe { grid-template-columns: 1fr; }
+  .table-wrap { overflow-x: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="nav" aria-label="Main">
+    <div class="wordmark">Gazi</div>
+    <button class="workspace" type="button" aria-label="Switch workspace">
+      <span>Rahman Knit Composite<small>Admin</small></span>
+      <span aria-hidden="true">⌄</span>
+    </button>
+    <a href="#replies" data-view="replies" aria-current="page">Replies <span class="count">4</span></a>
+    <a href="#campaigns" data-view="campaigns">Campaigns</a>
+    <a href="#leads" data-view="leads">Leads</a>
+    <a href="#settings" data-view="settings">Settings</a>
+    <div class="me">Mehedi Hasan</div>
+  </nav>
+
+  <!-- ===================== Replies ===================== -->
+  <section class="view view-replies is-active" id="view-replies" aria-label="Replies">
+    <div class="queue">
+      <div class="queue-head">
+        <h1>Replies</h1>
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" aria-selected="true">To review 4</button>
+          <button class="tab" role="tab" aria-selected="false">Sent</button>
+          <button class="tab" role="tab" aria-selected="false">All</button>
+        </div>
+      </div>
+      <ul class="queue-list" id="queue"></ul>
+    </div>
+
+    <div class="thread">
+      <div class="thread-inner">
+        <header class="thread-head">
+          <h2 id="t-name"></h2>
+          <p id="t-meta"></p>
+        </header>
+
+        <details class="ours">
+          <summary><span>We sent <strong id="t-subject"></strong></span><span class="toggle"></span></summary>
+          <div class="letter" id="t-ours"></div>
+        </details>
+
+        <div class="block">
+          <div class="block-label" id="t-reply-label"></div>
+          <div class="letter" id="t-reply"></div>
+        </div>
+
+        <div class="block">
+          <div class="block-label"><b>Draft reply</b>, written by Gazi. Edit anything before you send it.</div>
+          <div class="draft">
+            <label for="t-draft" class="visually-hidden" hidden>Draft reply</label>
+            <textarea class="draft-body" id="t-draft"></textarea>
+            <div class="link-note" id="t-link" aria-live="polite"><span class="mark"></span><span></span></div>
+            <div class="draft-foot">
+              <label for="t-intent">Intent</label>
+              <select class="select" id="t-intent">
+                <option value="interested">Interested</option>
+                <option value="question">Question</option>
+                <option value="not_interested">Not interested</option>
+                <option value="referral">Referral</option>
+                <option value="out_of_office">Out of office</option>
+                <option value="unsubscribe">Unsubscribe</option>
+                <option value="other">Other</option>
+              </select>
+              <span class="spacer"></span>
+              <button class="btn btn-quiet" type="button" id="t-dismiss">Dismiss</button>
+              <button class="btn btn-primary" type="button" id="t-send">Send reply</button>
+            </div>
+          </div>
+          <p class="why" id="t-why"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Campaigns ===================== -->
+  <section class="view" id="view-campaigns" aria-label="Campaigns">
+    <div class="page">
+      <div class="page-head">
+        <div>
+          <h1>Campaigns</h1>
+          <p>Email campaigns run through Instantly, LinkedIn campaigns through HeyReach.</p>
+        </div>
+        <button class="btn btn-primary" type="button">New campaign</button>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr>
+            <th>Campaign</th><th>Status</th><th class="num">Leads</th><th class="num">Replied</th><th class="num">Interested</th><th class="num">Booked</th>
+          </tr></thead>
+          <tbody>
+            <tr><td><a href="#campaign" data-view="campaign">EU furniture importers<span class="sub">Email, 5 steps</span></a></td><td><span class="status" data-s="active">Active</span></td><td class="num">1,240</td><td class="num">61</td><td class="num">14</td><td class="num">6</td></tr>
+            <tr><td><a href="#campaign" data-view="campaign">US private-label apparel<span class="sub">Email, 4 steps</span></a></td><td><span class="status" data-s="active">Active</span></td><td class="num">860</td><td class="num">38</td><td class="num">9</td><td class="num">3</td></tr>
+            <tr><td><a href="#campaign" data-view="campaign">Nordic workwear sourcing<span class="sub">LinkedIn, 5 messages</span></a></td><td><span class="status" data-s="paused">Paused</span></td><td class="num">412</td><td class="num">27</td><td class="num">5</td><td class="num">1</td></tr>
+            <tr><td><a href="#campaign" data-view="campaign">UK school uniform buyers<span class="sub">Email, 5 steps</span></a></td><td><span class="status" data-s="draft">Draft</span></td><td class="num">300</td><td class="num">0</td><td class="num">0</td><td class="num">0</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Campaign detail ===================== -->
+  <section class="view" id="view-campaign" aria-label="Campaign">
+    <div class="page">
+      <a href="#campaigns" class="back" data-view="campaigns">Campaigns</a>
+      <div class="page-head">
+        <div>
+          <h1>EU furniture importers</h1>
+          <p>Email through Instantly, sending from asif@rahmanknit.com</p>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" type="button">Pause</button>
+          <button class="btn" type="button">Add leads</button>
+        </div>
+      </div>
+
+      <p class="summary">
+        <b>1,240</b> buyers contacted since 3 November. <b>61</b> replied, <b class="g">14</b> are interested,
+        and <b>6</b> booked a call.
+      </p>
+
+      <h2 class="section-title">Sequence</h2>
+      <ol class="steps">
+        <li class="step"><div class="step-n">1<small>Day 0</small></div><div class="step-body">
+          <h3>First email</h3><p class="subject">Subject: Jonas, quick thought on your autumn range</p>
+          <div class="letter"><p>Hi Jonas, Nordhaus moved its upholstery sourcing to Poland last year, and lead times on cushion covers seem to have stretched since.</p></div>
+        </div></li>
+        <li class="step"><div class="step-n">2<small>Day 3</small></div><div class="step-body">
+          <h3>Follow-up with a customer example</h3><p class="subject">Subject: How Bolia cut cover lead times</p>
+          <div class="letter"><p>The 31-day turnaround I mentioned came from a change in how we cut and sew in one building.</p></div>
+        </div></li>
+        <li class="step"><div class="step-n">3<small>Day 7</small></div><div class="step-body">
+          <h3>Follow-up on a market trend</h3><p class="subject">Subject: EU deforestation rules and cotton</p>
+        </div></li>
+        <li class="step"><div class="step-n">4<small>Day 12</small></div><div class="step-body">
+          <h3>Follow-up offering a resource</h3><p class="subject">Subject: Our compliance checklist</p>
+        </div></li>
+        <li class="step"><div class="step-n">5<small>Day 18</small></div><div class="step-body">
+          <h3>Last email</h3><p class="subject">Subject: Closing the loop</p>
+        </div></li>
+      </ol>
+
+      <h2 class="section-title">Settings</h2>
+      <dl class="settings-grid">
+        <div><dt>Sending days</dt><dd>Mon to Fri, 9:00 to 17:00 CET</dd></div>
+        <div><dt>Daily limit</dt><dd>60 emails per inbox</dd></div>
+        <div><dt>Replies</dt><dd>Review interested and questions</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ===================== Leads ===================== -->
+  <section class="view" id="view-leads" aria-label="Leads">
+    <div class="page">
+      <div class="page-head">
+        <div>
+          <h1>Leads</h1>
+          <p>Import an Apollo export, or search Apollo from a campaign.</p>
+        </div>
+      </div>
+
+      <div class="drop">
+        <strong>Drop an Apollo CSV here</strong>
+        <p>Gazi keeps the file for 7 days in case you need to re-run the import, then deletes it. Your leads stay.</p>
+        <button class="btn" type="button">Choose file</button>
+      </div>
+
+      <div class="review">
+        <div class="review-head">
+          <div>
+            <h2>3 leads from furniture-importers.csv are already in your workspace</h2>
+            <p>The other 497 were imported. These stay out of campaigns until you decide.</p>
+          </div>
+          <button class="btn btn-primary" type="button">Apply choices</button>
+        </div>
+        <div class="dupe"><div><b>Jonas Eriksen</b><div class="label">jonas@nordhaus.dk, Head of Sourcing</div></div><div class="label">Already in US private-label apparel</div>
+          <div class="seg" role="group" aria-label="Choice for Jonas Eriksen"><button aria-pressed="true">Skip</button><button aria-pressed="false">Update existing</button><button aria-pressed="false">Add anyway</button></div></div>
+        <div class="dupe"><div><b>Claire Moreau</b><div class="label">c.moreau@maisonlin.fr, Purchasing Manager</div></div><div class="label">Already in EU furniture importers</div>
+          <div class="seg" role="group" aria-label="Choice for Claire Moreau"><button aria-pressed="false">Skip</button><button aria-pressed="true">Update existing</button><button aria-pressed="false">Add anyway</button></div></div>
+        <div class="dupe"><div><b>Pieter de Vries</b><div class="label">pieter@woonstudio.nl, Buyer</div></div><div class="label">Listed twice in this file</div>
+          <div class="seg" role="group" aria-label="Choice for Pieter de Vries"><button aria-pressed="true">Skip</button><button aria-pressed="false">Update existing</button><button aria-pressed="false">Add anyway</button></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Settings ===================== -->
+  <section class="view" id="view-settings" aria-label="Settings">
+    <div class="page">
+      <div class="page-head"><div><h1>Settings</h1><p>Connected accounts for Rahman Knit Composite. Keys are encrypted and never shown again after you save them.</p></div></div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Service</th><th>Used for</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>Instantly</b></td><td>Sending email campaigns</td><td><span class="status" data-s="active">Connected, key ending 4f2a</span></td><td class="num"><button class="btn" type="button">Replace key</button></td></tr>
+            <tr><td><b>HeyReach</b></td><td>LinkedIn campaigns</td><td><span class="status" data-s="active">Connected, key ending 91c0</span></td><td class="num"><button class="btn" type="button">Replace key</button></td></tr>
+            <tr><td><b>Apollo</b></td><td>Finding buyers</td><td><span class="status" data-s="draft">Not connected</span></td><td class="num"><button class="btn btn-primary" type="button">Connect</button></td></tr>
+            <tr><td><b>Calendly</b></td><td>Booking link and booked calls</td><td><span class="status" data-s="active">Connected</span></td><td class="num"><button class="btn" type="button">Change</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const CAL = "calendly.com/rahmanknit/intro";
+const replies = [
+  { id: 1, name: "Claire Moreau", title: "Purchasing Manager", company: "Maison Lin", campaign: "EU furniture importers",
+    channel: "Email", time: "9:42", intent: "interested", confidence: 0.93,
+    subject: "Claire, quick thought on your linen range",
+    ours: ["Hi Claire, Maison Lin's new washed-linen cushions look like they're moving from a seasonal line to a core one, which usually puts pressure on cover lead times.",
+           "We sew covers for two French homeware brands in 31 days door to door, with OEKO-TEX certified fabric. Worth a short exchange to see if that would help next season?"],
+    reply: ["Hello, yes this is timely. We are reviewing suppliers for the spring range now.", "Could you share your MOQ per colour and whether you can do custom labels? Happy to talk next week."],
+    draft: "Hi Claire,\n\nGood timing. Our MOQ is 300 pieces per colour, and we print and sew custom woven labels in-house at no extra cost.\n\nIf next week works, pick a time that suits you and we'll walk through fabrics and timelines." },
+  { id: 2, name: "Tom Bradley", title: "Head of Buying", company: "Northfield Supply", campaign: "US private-label apparel",
+    channel: "Email", time: "8:15", intent: "question", confidence: 0.88,
+    subject: "For the Northfield team",
+    ours: ["Hi Tom, private-label basics have been squeezed on margin this year as freight settled but cotton didn't."],
+    reply: ["What certifications do you hold? We need WRAP at a minimum for our retail partners."],
+    draft: "Hi Tom,\n\nWe hold WRAP Gold, BSCI and OEKO-TEX Standard 100, and our main unit was audited by Sedex in August.\n\nI can send the certificates, or we can go through them together on a short call." },
+  { id: 3, name: "Annika Berg", title: "Category Lead", company: "Arbetsklädd AB", campaign: "Nordic workwear sourcing",
+    channel: "LinkedIn", time: "Yesterday", intent: "not_interested", confidence: 0.91,
+    subject: "a connection request",
+    ours: ["Hi Annika, saw you lead workwear at Arbetsklädd. We make hi-vis and flame-retardant ranges for Nordic brands."],
+    reply: ["Thanks, but we signed a three-year deal with our current supplier in October."],
+    draft: "Thanks for letting me know, Annika. Three years is a solid commitment. If anything changes on your side, I'm easy to find here." },
+  { id: 4, name: "Marco Bianchi", title: "Sourcing Director", company: "Casa Vela", campaign: "EU furniture importers",
+    channel: "Email", time: "Yesterday", intent: "out_of_office", confidence: 0.97,
+    subject: "Marco, quick thought on outdoor cushions",
+    ours: ["Hi Marco, outdoor cushion covers seem to be where Casa Vela is growing fastest this year."],
+    reply: ["I am out of the office until 2 December with limited access to email."],
+    draft: "" },
+];
+const INTENT_LABEL = { interested: "Interested", question: "Question", not_interested: "Not interested",
+  referral: "Referral", out_of_office: "Out of office", unsubscribe: "Unsubscribe", other: "Other" };
+const LINKS_ALLOWED = new Set(["interested", "question"]);
+
+const $ = (id) => document.getElementById(id);
+const paras = (arr) => arr.map((t) => `<p>${t}</p>`).join("");
+let current = replies[0];
+
+function renderQueue() {
+  $("queue").innerHTML = replies.map((r) => `
+    <li><button class="queue-item" type="button" data-id="${r.id}" aria-current="${r.id === current.id}">
+      <span class="who">${r.name}</span><time>${r.time}</time>
+      <span class="intent" data-intent="${r.intent}">${INTENT_LABEL[r.intent]}</span><span></span>
+      <span class="snippet">${r.reply[0]}</span>
+    </button></li>`).join("");
+}
+
+function renderLinkNote(intent) {
+  const note = $("t-link");
+  const on = LINKS_ALLOWED.has(intent);
+  note.dataset.on = on;
+  note.lastElementChild.innerHTML = on
+    ? `Gazi will add your booking link, <a href="#" tabindex="-1">${CAL}</a>, at the end.`
+    : `No links will be sent. Links are only added to interested replies and questions.`;
+}
+
+function renderThread() {
+  const r = current;
+  $("t-name").textContent = r.name;
+  $("t-meta").textContent = `${r.title} at ${r.company}, from the ${r.campaign} campaign ${r.channel === "Email" ? "by email" : "on LinkedIn"}`;
+  $("t-subject").textContent = r.subject;
+  $("t-ours").innerHTML = paras(r.ours);
+  const when = /\d/.test(r.time) ? `at ${r.time}` : r.time.toLowerCase();
+  $("t-reply-label").innerHTML = `<b>${r.name.split(" ")[0]} replied</b> ${when}`;
+  $("t-reply").innerHTML = paras(r.reply);
+  $("t-draft").value = r.draft;
+  fitDraft();
+  $("t-draft").placeholder = r.intent === "out_of_office" ? "No reply needed. Gazi will check back after they return." : "";
+  $("t-intent").value = r.intent;
+  $("t-why").textContent = `Gazi read this as ${INTENT_LABEL[r.intent].toLowerCase()} with ${Math.round(r.confidence * 100)}% confidence. Change the intent if it's wrong.`;
+  renderLinkNote(r.intent);
+}
+
+$("queue").addEventListener("click", (e) => {
+  const btn = e.target.closest(".queue-item");
+  if (!btn) return;
+  current = replies.find((r) => r.id === Number(btn.dataset.id));
+  renderQueue(); renderThread();
+});
+function fitDraft() {
+  const d = $("t-draft"); d.style.height = "auto"; d.style.height = `${d.scrollHeight}px`;
+}
+$("t-draft").addEventListener("input", fitDraft);
+$("t-intent").addEventListener("change", (e) => {
+  current.intent = e.target.value;
+  renderLinkNote(current.intent); renderQueue();
+});
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("is-on");
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("is-on"), 2200);
+}
+$("t-send").addEventListener("click", () => toast(`Reply sent to ${current.name}`));
+$("t-dismiss").addEventListener("click", () => toast(`Dismissed ${current.name}'s reply`));
+
+document.querySelectorAll(".seg").forEach((seg) => seg.addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  seg.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+}));
+
+function show(view) {
+  document.querySelectorAll(".view").forEach((v) => v.classList.toggle("is-active", v.id === `view-${view}`));
+  const navView = view === "campaign" ? "campaigns" : view;
+  document.querySelectorAll(".nav a").forEach((a) => a.toggleAttribute("aria-current", a.dataset.view === navView));
+  document.querySelector(".nav a[aria-current]")?.setAttribute("aria-current", "page");
+}
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("a[data-view]");
+  if (!a) return;
+  e.preventDefault(); show(a.dataset.view); history.replaceState(null, "", `#${a.dataset.view}`);
+});
+
+renderQueue(); renderThread();
+const fromHash = () => show((location.hash || "#replies").slice(1));
+window.addEventListener("hashchange", fromHash);
+fromHash();
+document.fonts.ready.then(fitDraft);
+</script>
+</body>
+</html>

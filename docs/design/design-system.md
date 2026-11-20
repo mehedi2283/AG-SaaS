@@ -1,0 +1,51 @@
+# Gazi design system
+
+Subject: correspondence between an exporter and overseas buyers. The core object is a *conversation*,
+not a metric. Home screen = the reply desk, not a dashboard of big numbers.
+
+Color
+- Desk   #F5F5F8  cool grey app background
+- Paper  #FFFFFF  panes
+- Ink    #201D29  text (violet-leaning, tied to brand)
+- Ink-2  #5D5A69  secondary text
+- Rule   #E4E3EA  1px dividers
+- Violet #6A2CC9  the only action colour (Gazi #A234FD deepened for AA text contrast)
+- Intent colours carry meaning only: interested #17734A, question #2451A6, out of office #93600A,
+  unsubscribe #B42318, others ink-2.
+
+Type
+- UI: Schibsted Grotesk (newsroom grotesk: firm, a little editorial, not Inter/Geist).
+- Messages: Source Serif 4. Everything a *person wrote* (the buyer's reply, the draft we'll send)
+  is set as a letter in serif; everything the *system* says is in the grotesk. That split is the idea.
+- Scale: 12 / 13 / 14 (base) / 16 (letter) / 20 / 26. Tabular figures for counts.
+
+Layout
+  ┌────┬───────────────┬─────────────────────────────────┐
+  │nav │ reply list    │ thread: our email (collapsed)    │
+  │    │ name, intent  │ their reply  (serif letter)      │
+  │    │ snippet, time │ draft reply  (serif, editable)   │
+  │    │               │ [intent ▾] link note   [Send]    │
+  └────┴───────────────┴─────────────────────────────────┘
+  Columns separated by rules, no floating cards, no shadows. Left aligned throughout.
+  Campaigns = a plain table. Campaign page = one sentence of numbers + the sequence (a real sequence,
+  so step numbers are earned). Leads = import + duplicate review.
+
+Principles
+1. People's words in serif, system words in sans.
+2. Colour means something (intent or action) or it isn't there.
+3. The rules are visible: when intent changes, the UI says whether a link will be added and why.
+4. One bold thing: the letter treatment. Everything else stays quiet.
+
+Review vs generic defaults
+- Draft 0 had a KPI card row on the home screen (4 big numbers + sparkline). That's the SaaS-card kit;
+  cut. Numbers now live in one sentence on the campaign page.
+- Serif + warm cream is the classic tell; kept the serif but only for message bodies, on cool grey/white,
+  never as display type.
+- No ALL-CAPS labels, no mono data labels, no "→" on buttons, no middle-dot meta strings.
+
+Build notes (from the screenshot review)
+- Schibsted Grotesk's tabular figures also make punctuation tabular, so `tabular-nums` is applied only
+  to number cells, times and counts, never to body text.
+- Drafts auto-size to their content, and are measured again once fonts load.
+- Prototype: `docs/design/prototype.html` (open it in a browser; the screens are Replies, Campaigns,
+  Campaign, Leads and Settings).
