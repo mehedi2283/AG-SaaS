@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 import asyncpg
@@ -20,3 +21,14 @@ async def create_workspace(conn: asyncpg.Connection, name: str, slug: str, wrapp
     except asyncpg.UniqueViolationError as exc:
         raise Conflict("That workspace address is taken. Try another.", code="slug_taken") from exc
     return tenant_id
+
+
+async def tenant_settings(conn: asyncpg.Connection) -> dict[str, Any]:
+    stored: dict[str, Any] | None = await conn.fetchval("select settings from public.tenants")
+    return stored or {}
+
+
+async def merge_tenant_settings(conn: asyncpg.Connection, changes: dict[str, Any]) -> bool:
+    """Merge keys into the active tenant's settings. False if RLS let nothing through (not an admin)."""
+    result: str = await conn.execute("update public.tenants set settings = settings || $1::jsonb", changes)
+    return result != "UPDATE 0"

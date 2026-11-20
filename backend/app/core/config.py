@@ -51,10 +51,32 @@ class Settings(BaseSettings):
     stripe_webhook_secret: SecretStr | None = None
     stripe_price_id: str | None = None
     trial_days: int = 14
+    # Monthly token packs on top of the base plan, as "price_id:tokens,price_id:tokens".
+    stripe_token_packs: str = ""
+
+    # AI allowance per workspace and calendar month (UTC), before packs. Applies with or without billing.
+    included_tokens: int = 2_000_000
+    # Models a workspace may choose from (comma-separated), and the defaults for new workspaces.
+    llm_models: str = "gpt-5.5,gpt-5.5-mini,gpt-4o-mini"
+    default_writing_model: str = "gpt-5.5"
+    default_classify_model: str = "gpt-4o-mini"
 
     @property
     def billing_enabled(self) -> bool:
         return bool(self.stripe_secret_key and self.stripe_price_id)
+
+    @property
+    def token_packs(self) -> dict[str, int]:
+        """price_id -> tokens a month, in the configured order."""
+        packs: dict[str, int] = {}
+        for entry in filter(None, (e.strip() for e in self.stripe_token_packs.split(","))):
+            price_id, _, tokens = entry.partition(":")
+            packs[price_id.strip()] = int(tokens)
+        return packs
+
+    @property
+    def allowed_models(self) -> list[str]:
+        return [m.strip() for m in self.llm_models.split(",") if m.strip()]
 
     @model_validator(mode="after")
     def _one_token_verifier(self) -> Settings:
@@ -64,6 +86,15 @@ class Settings(BaseSettings):
             raise ValueError(
                 "production needs GAZI_STRIPE_SECRET_KEY, GAZI_STRIPE_PRICE_ID and GAZI_STRIPE_WEBHOOK_SECRET"
             )
+        try:
+            packs = self.token_packs
+        except ValueError as exc:
+            raise ValueError("GAZI_STRIPE_TOKEN_PACKS must look like price_abc:2000000,price_def:5000000") from exc
+        if any(tokens <= 0 for tokens in packs.values()):
+            raise ValueError("every token pack needs a positive token count")
+        for model in (self.default_writing_model, self.default_classify_model):
+            if model not in self.allowed_models:
+                raise ValueError(f"default model {model!r} is not in GAZI_LLM_MODELS")
         return self
 
 

@@ -16,7 +16,7 @@ async def subscription(conn: asyncpg.Connection) -> asyncpg.Record | None:
     row: asyncpg.Record | None = await conn.fetchrow(
         """
         select stripe_customer_id, stripe_subscription_id, status, price_id, trial_end, current_period_end,
-               cancel_at_period_end
+               cancel_at_period_end, addon_tokens, addons
           from public.subscriptions
         """
     )
@@ -27,6 +27,24 @@ async def access(conn: asyncpg.Connection) -> tuple[str, datetime | None]:
     row = await conn.fetchrow("select access, grace_ends_at from app.billing_access()")
     assert row is not None  # the function always returns one row
     return row["access"], row["grace_ends_at"]
+
+
+async def month_usage(conn: asyncpg.Connection, *, worker: bool) -> int:
+    """Tokens used by the active tenant this calendar month (UTC)."""
+    if worker:  # gazi_worker reads usage_logs directly (RLS scopes it to the job's tenant)
+        query = (
+            "select coalesce(sum(total_tokens), 0)::bigint from public.usage_logs"
+            " where created_at >= date_trunc('month', now() at time zone 'utc') at time zone 'utc'"
+        )
+    else:  # usage_logs is admin-only for people; this function gives every member the total
+        query = "select app.month_token_usage()"
+    used: int = await conn.fetchval(query)
+    return used
+
+
+async def addon_tokens(conn: asyncpg.Connection) -> int:
+    value: int | None = await conn.fetchval("select addon_tokens from public.subscriptions")
+    return value or 0
 
 
 async def tenant_name(conn: asyncpg.Connection) -> str | None:
@@ -87,6 +105,8 @@ async def apply_subscription(
     trial_end: datetime | None,
     current_period_end: datetime | None,
     cancel_at_period_end: bool,
+    addon_tokens: int,
+    addons: list[dict[str, Any]],
     event_created: datetime,
 ) -> bool:
     """Write Stripe's subscription state unless a newer event was already applied. False if stale.
@@ -106,7 +126,9 @@ async def apply_subscription(
                  when $2 in {_GOOD} then null
                  else coalesce(lapsed_at, case when status in {_GOOD} then now() end)
                end,
-               last_event_at = $7
+               last_event_at = $7,
+               addon_tokens = $8,
+               addons = $9
          where last_event_at is null or last_event_at <= $7
         """,
         subscription_id,
@@ -116,5 +138,7 @@ async def apply_subscription(
         current_period_end,
         cancel_at_period_end,
         event_created,
+        addon_tokens,
+        addons,
     )
     return result != "UPDATE 0"

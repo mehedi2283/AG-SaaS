@@ -15,6 +15,11 @@ export function formatPrice(plan: Billing["plan"]): string {
   return plan.interval ? `${amount} a ${plan.interval}` : amount;
 }
 
+/** 2000000 -> "2M", 1500 -> "1.5K". */
+export function formatTokens(n: number): string {
+  return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(n);
+}
+
 export function formatDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) : "";
 }
@@ -152,7 +157,23 @@ export function ChoosePlan() {
 export function BillingBanner() {
   const { billing, can, active, toast } = useWorkspace();
   const [busy, setBusy] = useState(false);
-  if (!billing?.enabled || (billing.access !== "grace" && billing.access !== "paused")) return null;
+  if (!billing) return null;
+  if (billing.access === "active" && billing.tokens.used >= billing.tokens.cap) {
+    return (
+      <div className="banner banner-warn" role="status">
+        <span>
+          AI writing and reply drafting are paused: this month&apos;s {formatTokens(billing.tokens.cap)} tokens are used.
+          {" "}They reset on {formatDate(billing.tokens.resets_at)}.
+        </span>
+        {billing.enabled && can("admin") && (
+          <a className="btn" href="/settings#ai-allowance">
+            Add tokens
+          </a>
+        )}
+      </div>
+    );
+  }
+  if (!billing.enabled || (billing.access !== "grace" && billing.access !== "paused")) return null;
 
   const paused = billing.access === "paused";
   const message = paused

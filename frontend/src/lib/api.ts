@@ -105,6 +105,16 @@ export type Billing = {
   grace_ends_at: string | null;
   trial_available: boolean;
   plan: { price_id: string; unit_amount: number | null; currency: string; interval: string | null; trial_days: number } | null;
+  /** This calendar month's AI allowance (UTC). Over the cap, AI writing and drafting pause. */
+  tokens: { used: number; cap: number; included: number; addon: number; resets_at: string };
+  packs: { price_id: string; tokens: number; unit_amount: number | null; currency: string; quantity: number }[];
+};
+
+export type AiSettings = {
+  auto_reply: boolean;
+  writing_model: string;
+  classify_model: string;
+  available_models: string[];
 };
 
 export type Redirect = { url: string };

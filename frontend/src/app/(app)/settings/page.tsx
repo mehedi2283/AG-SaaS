@@ -1,5 +1,6 @@
 "use client";
 
+import { AiSettings } from "@/components/settings/AiSettings";
 import { BillingSection } from "@/components/settings/BillingSection";
 import { ConnectedAccounts } from "@/components/settings/ConnectedAccounts";
 import { WebhookAddresses } from "@/components/settings/WebhookAddresses";
@@ -28,6 +29,8 @@ export default function SettingsPage() {
       ) : (
         <p className="notice notice-plain">Only admins can see and change connected accounts.</p>
       )}
+
+      <AiSettings />
 
       <BillingSection />
 

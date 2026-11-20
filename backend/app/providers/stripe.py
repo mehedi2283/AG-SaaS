@@ -14,7 +14,7 @@ from uuid import UUID
 import stripe
 import structlog
 
-from app.core.errors import Unauthorized, UpstreamError
+from app.core.errors import AppError, PaymentRequired, Unauthorized, UpstreamError
 
 log = structlog.get_logger()
 
@@ -27,6 +27,13 @@ class PriceInfo:
     unit_amount: int | None
     currency: str
     interval: str | None
+
+
+@dataclass(frozen=True)
+class SubscriptionItem:
+    id: str
+    price_id: str
+    quantity: int
 
 
 class BillingProvider(Protocol):
@@ -49,8 +56,12 @@ class BillingProvider(Protocol):
 
     def parse_event(self, body: bytes, signature: str | None) -> dict[str, Any]: ...
 
+    async def subscription_items(self, subscription_id: str) -> list[SubscriptionItem]: ...
 
-def _fail(op: str, exc: stripe.StripeError) -> UpstreamError:
+    async def change_items(self, subscription_id: str, items: list[dict[str, Any]], *, end_trial: bool) -> None: ...
+
+
+def _fail(op: str, exc: stripe.StripeError) -> AppError:
     retryable = isinstance(exc, _RETRYABLE)
     log.error(
         "stripe.request_failed",
@@ -60,6 +71,10 @@ def _fail(op: str, exc: stripe.StripeError) -> UpstreamError:
         http_status=exc.http_status,
         stripe_code=exc.code,
     )
+    if isinstance(exc, stripe.CardError):
+        return PaymentRequired(
+            "The card was declined. Update it in Manage billing, then try again.", code="card_declined"
+        )
     if retryable:
         return UpstreamError("Stripe didn't respond. Try again in a moment.", code="stripe_unavailable")
     return UpstreamError("Stripe rejected the request. Check the billing settings.", code="stripe_rejected")
@@ -138,6 +153,28 @@ class StripeBilling:
                 interval=recurring.interval if recurring else None,
             )
         return self._prices[price_id]
+
+    async def subscription_items(self, subscription_id: str) -> list[SubscriptionItem]:
+        try:
+            sub = await self._client.v1.subscriptions.retrieve_async(subscription_id)
+        except stripe.StripeError as exc:
+            raise _fail("subscriptions.retrieve", exc) from exc
+        return [SubscriptionItem(i.id, i.price.id, i.quantity or 1) for i in sub["items"].data]
+
+    async def change_items(self, subscription_id: str, items: list[dict[str, Any]], *, end_trial: bool) -> None:
+        """Add, re-count or delete subscription items, prorated. The webhook then records the new state."""
+        # Charge the prorated amount now, and refuse the change if that payment fails (no unpaid tokens).
+        params: dict[str, Any] = {
+            "items": items,
+            "proration_behavior": "always_invoice",
+            "payment_behavior": "error_if_incomplete",
+        }
+        if end_trial:
+            params["trial_end"] = "now"
+        try:
+            await self._client.v1.subscriptions.update_async(subscription_id, params)  # type: ignore[arg-type]
+        except stripe.StripeError as exc:
+            raise _fail("subscriptions.update", exc) from exc
 
     def parse_event(self, body: bytes, signature: str | None) -> dict[str, Any]:
         """Verify the Stripe-Signature header (HMAC, constant-time, 5-minute tolerance), then parse."""

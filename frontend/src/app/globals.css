@@ -193,6 +193,27 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .plan-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 6px; }
 .plan-price { font-size: var(--t-20); font-weight: 600; }
 
+.meter { height: 6px; margin-top: 12px; border-radius: 3px; background: var(--rule); overflow: hidden; max-width: 520px; }
+.meter span { display: block; height: 100%; background: var(--violet); border-radius: 3px; }
+.meter .meter-high { background: var(--ooo); }
+.meter .meter-full { background: var(--danger); }
+a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+
+/* ---------- switch, select ---------- */
+.toggle {
+  position: relative; width: 40px; height: 24px; flex: none; padding: 0; cursor: pointer;
+  border: 0; border-radius: 12px; background: var(--rule-strong); transition: background 0.15s ease;
+}
+.toggle[aria-checked="true"] { background: var(--violet); }
+.toggle:disabled { opacity: 0.55; cursor: default; }
+.toggle-knob {
+  position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 2px rgb(30 27 38 / 0.2); transition: transform 0.15s ease;
+}
+.toggle[aria-checked="true"] .toggle-knob { transform: translateX(16px); }
+.select { width: auto; min-width: 180px; padding-right: 28px; }
+@media (prefers-reduced-motion: reduce) { .toggle, .toggle-knob { transition: none; } }
+
 /* ---------- toast ---------- */
 .toast {
   position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);

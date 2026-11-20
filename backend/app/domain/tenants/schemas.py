@@ -40,3 +40,24 @@ class ActiveTenantRequest(BaseModel):
 class ActiveTenantResult(BaseModel):
     tenant_id: UUID
     refresh_session: bool = True
+
+
+class AiSettings(BaseModel):
+    """Per-workspace AI choices, kept in tenants.settings."""
+
+    # Off: every drafted reply waits for approval. On: Gazi sends by itself, except when the classifier is
+    # unsure (below the confidence threshold), which always becomes a draft.
+    auto_reply: bool
+    writing_model: str  # sequences and replies
+    classify_model: str  # reply intent and lead scoring
+
+
+class AiSettingsOut(AiSettings):
+    available_models: list[str]
+
+
+class AiSettingsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    auto_reply: bool | None = None
+    writing_model: str | None = None
+    classify_model: str | None = None

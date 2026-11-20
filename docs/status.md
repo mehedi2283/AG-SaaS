@@ -15,6 +15,7 @@ Last updated: 2026-11-20 (billing session).
 | Local dev (Supabase CLI, Docker, `infra/dev-setup.ps1`) | Done. Verified on the owner's Windows PC. | `main` |
 | Frontend: sign-in, workspace setup and switcher, Settings (accounts, webhook addresses) | Done. Verified in a browser against the local stack. | `main` |
 | Billing (Stripe): plan screen, 14-day trial checkout, portal, webhooks, grace/paused banner | Done. Verified end to end against the Stripe sandbox (API + webhooks); screens not yet checked in a browser. `ensure_access` is ready but not wired: launches and AI don't exist yet. | `main` |
+| AI allowance + token packs (2M included; +2M $49, +5M $99, +12M $199 monthly), workspace AI settings (auto-reply on/off, model choice) | Done. Pack purchase verified end to end against the Stripe sandbox; screens not yet checked in a browser. `ensure_token_budget` is ready for the LLM client. | local commit |
 | Frontend: Replies, Campaigns, Leads | Empty states only; each waits for its backend. | |
 | Reply pipeline (worker, classify, draft, guards, send) | **Next.** | |
 | Leads (CSV import + duplicates, Apollo search + scoring), sequence generation, launching Instantly/HeyReach campaigns | Not started. | |
@@ -51,9 +52,9 @@ the workflow code and must be checked against a real event before the reply pipe
 |---|---|
 | Apollo keys | Per workspace (each tenant brings its own) |
 | Weekly reports and alerts email | One platform SendGrid account and sending domain |
-| Models | gpt-5.5 for writing; gpt-4o-mini for classification and scoring |
-| Monthly LLM token cap per workspace | 2M tokens |
-| Auto-send | Only at confidence >= 0.85; `interested` and `question` always wait for approval; others auto-send |
+| Models | **Decided:** each workspace picks from `GAZI_LLM_MODELS`; defaults gpt-5.5 (writing) and gpt-4o-mini (sorting/scoring) |
+| Monthly LLM token cap per workspace | **Decided:** 2M included with the $99 plan, plus monthly packs (+2M $49, +5M $99, +12M $199). Over the cap: AI writing and drafting pause, nothing else. Calendar month, UTC. |
+| Auto-send | **Decided:** a per-workspace on/off switch (off by default). When on, Gazi still holds a draft below the confidence threshold (0.85). |
 | Billing / plans | **Decided 2026-11-20, built:** one plan, $99/month USD per workspace, 14-day trial with card up front (one trial per workspace), 7 days of grace after a failed payment or cancellation, then launches and AI pause (data stays readable). Stripe Tax off until go-live. |
 
 ## Billing notes
@@ -63,6 +64,9 @@ the workflow code and must be checked against a real event before the reply pipe
 - Keys live in `infra/.env` locally; Docker secrets in production. Production refuses to start without them.
 - The Stripe webhook is applied inline (one row update), not queued, because there are no workers yet. It can
   move to the queue once the worker exists.
+- Token packs: sandbox prices `price_1Udp7rK75IMqipLxSD2Gpiyl` (+2M), `price_1Udp7sK75IMqipLxyBqDlZei` (+5M),
+  `price_1Udp7sK75IMqipLxx79JnnQI` (+12M), configured in `GAZI_STRIPE_TOKEN_PACKS`. Adding a pack charges the prorated
+  amount now (`always_invoice`, refused if the card fails); adding one during the trial ends the trial.
 - Stripe CLI is installed via winget; local testing: `stripe listen --forward-to localhost:8000/webhooks/stripe`.
 - The owner should roll the sandbox secret key: it appeared in a CLI error output during testing.
 

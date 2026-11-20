@@ -15,11 +15,19 @@ import structlog
 
 from app.core.auth import TenantContext
 from app.core.config import Settings
-from app.core.errors import Conflict, NotFound, PaymentRequired, ServiceUnavailable
+from app.core.errors import Conflict, NotFound, PaymentRequired, ServiceUnavailable, Unprocessable
 from app.db.tenant_tx import as_worker
 from app.domain.audit.repo import record
 from app.domain.billing import repo
-from app.domain.billing.schemas import BillingAccess, BillingOut, PlanOut, RedirectOut, StripeWebhookResult
+from app.domain.billing.schemas import (
+    BillingAccess,
+    BillingOut,
+    PackOut,
+    PlanOut,
+    RedirectOut,
+    StripeWebhookResult,
+    TokensOut,
+)
 from app.providers.stripe import BillingProvider
 
 log = structlog.get_logger()
@@ -41,8 +49,53 @@ def _require(settings: Settings, billing: BillingProvider | None) -> BillingProv
     return billing
 
 
+def _next_month_start(now: datetime) -> datetime:
+    return datetime(now.year + now.month // 12, now.month % 12 + 1, 1, tzinfo=UTC)
+
+
+async def tokens(conn: asyncpg.Connection, settings: Settings, *, worker: bool = False) -> TokensOut:
+    addon = await repo.addon_tokens(conn) if settings.billing_enabled else 0
+    return TokensOut(
+        used=await repo.month_usage(conn, worker=worker),
+        cap=settings.included_tokens + addon,
+        included=settings.included_tokens,
+        addon=addon,
+        resets_at=_next_month_start(datetime.now(UTC)),
+    )
+
+
+async def ensure_token_budget(conn: asyncpg.Connection, settings: Settings, *, worker: bool = True) -> TokensOut:
+    """Check before every LLM call (rule 2). Over the monthly cap -> llm_quota_exceeded; nothing else pauses."""
+    budget = await tokens(conn, settings, worker=worker)
+    if budget.used >= budget.cap:
+        raise PaymentRequired(
+            "This month's AI allowance is used up. Add a token pack, or wait until it resets.",
+            code="llm_quota_exceeded",
+            extra={"tokens_used": budget.used, "token_cap": budget.cap, "resets_at": budget.resets_at.isoformat()},
+        )
+    return budget
+
+
+async def _packs(settings: Settings, provider: BillingProvider, owned: list[dict[str, Any]]) -> list[PackOut]:
+    counts = {str(a.get("price_id")): int(a.get("quantity") or 0) for a in owned}
+    packs = []
+    for price_id, pack_tokens in settings.token_packs.items():
+        price = await provider.get_price(price_id)
+        packs.append(
+            PackOut(
+                price_id=price_id,
+                tokens=pack_tokens,
+                unit_amount=price.unit_amount,
+                currency=price.currency,
+                quantity=counts.get(price_id, 0),
+            )
+        )
+    return packs
+
+
 async def get_billing(conn: asyncpg.Connection, settings: Settings, billing: BillingProvider | None) -> BillingOut:
     sub = await repo.subscription(conn)
+    allowance = await tokens(conn, settings)
     if billing is None or not settings.billing_enabled:
         # Local development without Stripe keys: nothing is gated.
         return BillingOut(
@@ -55,6 +108,8 @@ async def get_billing(conn: asyncpg.Connection, settings: Settings, billing: Bil
             grace_ends_at=None,
             trial_available=False,
             plan=None,
+            tokens=allowance,
+            packs=[],
         )
     access, grace_ends_at = await repo.access(conn)
     assert settings.stripe_price_id is not None
@@ -75,6 +130,8 @@ async def get_billing(conn: asyncpg.Connection, settings: Settings, billing: Bil
             interval=price.interval,
             trial_days=settings.trial_days,
         ),
+        tokens=allowance,
+        packs=await _packs(settings, billing, sub["addons"] if sub else []),
     )
 
 
@@ -121,6 +178,48 @@ async def open_portal(
     return RedirectOut(url=url)
 
 
+async def change_pack(
+    conn: asyncpg.Connection,
+    ctx: TenantContext,
+    settings: Settings,
+    billing: BillingProvider | None,
+    price_id: str,
+    *,
+    add: bool,
+) -> None:
+    """Add or remove one token pack on the subscription (prorated, charged now). The webhook records the result.
+
+    Adding a pack during the free trial ends the trial: paid tokens start a paid subscription.
+    """
+    provider = _require(settings, billing)
+    if price_id not in settings.token_packs:
+        raise Unprocessable("That isn't one of the token packs.", code="unknown_pack")
+    sub = await repo.subscription(conn)
+    if not sub or not sub["stripe_subscription_id"] or sub["status"] not in ("trialing", "active"):
+        raise Conflict("Token packs need an active subscription. Fix billing first.", code="subscription_not_active")
+
+    items = await provider.subscription_items(sub["stripe_subscription_id"])
+    current = next((i for i in items if i.price_id == price_id), None)
+    change: dict[str, Any]
+    if add:
+        change = {"id": current.id, "quantity": current.quantity + 1} if current else {"price": price_id, "quantity": 1}
+    elif current is None:
+        raise NotFound("This workspace doesn't have that token pack.", code="pack_not_found")
+    elif current.quantity > 1:
+        change = {"id": current.id, "quantity": current.quantity - 1}
+    else:
+        change = {"id": current.id, "deleted": True}
+    end_trial = add and sub["status"] == "trialing"
+    await provider.change_items(sub["stripe_subscription_id"], [change], end_trial=end_trial)
+    await record(
+        conn,
+        ctx,
+        "billing.token_pack_added" if add else "billing.token_pack_removed",
+        target_table="subscriptions",
+        diff={"price_id": price_id, "tokens": settings.token_packs[price_id], "ended_trial": end_trial},
+    )
+
+
 async def ensure_access(conn: asyncpg.Connection, settings: Settings) -> None:
     """Gate for launches and AI use (API and workers). Grace still passes; paused and none do not."""
     if not settings.billing_enabled:
@@ -144,15 +243,29 @@ def _ts(value: Any) -> datetime | None:
     return datetime.fromtimestamp(int(value), UTC) if value else None
 
 
-def _subscription_fields(obj: dict[str, Any]) -> dict[str, Any]:
-    items = (obj.get("items") or {}).get("data") or [{}]
-    first = items[0] if isinstance(items[0], dict) else {}
+def _subscription_fields(obj: dict[str, Any], settings: Settings) -> dict[str, Any]:
+    items = [i for i in ((obj.get("items") or {}).get("data") or []) if isinstance(i, dict)]
+    packs = settings.token_packs
+
+    def price_of(item: dict[str, Any]) -> str | None:
+        return (item.get("price") or {}).get("id")
+
+    base = next((i for i in items if price_of(i) == settings.stripe_price_id), None)
+    base = base or next((i for i in items if price_of(i) not in packs), items[0] if items else {})
+    counts: dict[str, int] = {}
+    for item in items:
+        price_id = price_of(item)
+        if price_id in packs:
+            counts[price_id] = counts.get(price_id, 0) + int(item.get("quantity") or 1)
+    addons = [{"price_id": p, "quantity": q} for p, q in counts.items()]
     # Newer Stripe API versions carry the billing period on the item, older ones on the subscription.
-    period_end = obj.get("current_period_end") or first.get("current_period_end")
+    period_end = obj.get("current_period_end") or base.get("current_period_end")
     return {
         "subscription_id": str(obj["id"]),
         "status": str(obj["status"]),
-        "price_id": (first.get("price") or {}).get("id"),
+        "price_id": price_of(base),
+        "addon_tokens": sum(packs[p] * q for p, q in counts.items()),
+        "addons": addons,
         "trial_end": _ts(obj.get("trial_end")),
         "current_period_end": _ts(period_end),
         "cancel_at_period_end": bool(obj.get("cancel_at_period_end")),
@@ -194,9 +307,9 @@ async def handle_stripe_webhook(
         applied = False
         try:
             async with conn.transaction():  # savepoint: a failure leaves the event row to mark as failed
-                applied = await repo.apply_subscription(
-                    conn, **_subscription_fields(obj), event_created=datetime.fromtimestamp(int(event["created"]), UTC)
-                )
+                created = datetime.fromtimestamp(int(event["created"]), UTC)
+                fields = _subscription_fields(obj, settings)
+                applied = await repo.apply_subscription(conn, **fields, event_created=created)
         except (asyncpg.PostgresError, KeyError, TypeError, ValueError) as exc:
             log.error("stripe.apply_failed", error_type=type(exc).__name__, error_code="stripe_event_invalid")
             await repo.mark_event(conn, row_id, "failed", "stripe_event_invalid")
