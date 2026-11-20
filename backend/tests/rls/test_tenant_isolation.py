@@ -418,14 +418,71 @@ def test_follow_ups_cannot_contain_links(conn: psycopg.Connection, seed: Seed, n
             )
 
 
-def test_links_in_replies_only_when_interested(conn: psycopg.Connection, seed: Seed) -> None:
+SIGNATURE = '<img src="https://cdn.example.com/sig.png" width="600" alt="Email Signature" />'
+
+
+@pytest.mark.parametrize("n", [2, 3, 4, 5])
+def test_follow_ups_reject_anchor_tags(conn: psycopg.Connection, seed: Seed, n: int) -> None:
+    col = sql.Identifier(f"personalization_{n}")
+    with as_user(conn, seed.a.users["member"], seed.a.id) as c:
+        with pytest.raises(errors.CheckViolation):
+            c.execute(
+                sql.SQL("update public.generated_emails set {} = %s where id = %s").format(col),
+                ['<p>See <a href="/case-study">the breakdown</a></p>', seed.a.rows["generated_emails"]],
+            )
+
+
+def test_follow_ups_allow_signature_image(conn: psycopg.Connection, seed: Seed) -> None:
+    with as_user(conn, seed.a.users["member"], seed.a.id) as c:
+        updated = c.execute(
+            "update public.generated_emails set personalization_2 = %s, personalization_5 = %s where id = %s",
+            [f"<p>Quick follow-up.</p>{SIGNATURE}", SIGNATURE, seed.a.rows["generated_emails"]],
+        ).rowcount
+    assert updated == 1
+
+
+@pytest.mark.parametrize(
+    ("intent", "allowed"),
+    [("interested", True), ("question", True), ("not_interested", False), ("out_of_office", False), ("other", False)],
+)
+def test_reply_links_only_for_interested_or_question(
+    conn: psycopg.Connection, seed: Seed, intent: str, allowed: bool
+) -> None:
+    rid = seed.a.rows["replies"]
+    pid = seed.a.rows["prompt_templates"]
+    setup = [
+        f"update public.replies set prompt_template_id = '{pid}', prompt_version = 1, intent = '{intent}'"
+        f" where id = '{rid}'"
+    ]
+    stmt = "update public.replies set draft_body = %s where id = %s"
+    body = '<p>Grab a slot: <a href="https://cal.com/x">here</a></p>'
+    with as_user(conn, seed.a.users["member"], seed.a.id, setup=setup) as c:
+        if allowed:
+            c.execute(stmt, [body, rid])
+        else:
+            with pytest.raises(errors.CheckViolation):
+                c.execute(stmt, [body, rid])
+
+
+def test_intent_change_cannot_keep_links(conn: psycopg.Connection, seed: Seed) -> None:
     rid = seed.a.rows["replies"]
     pid = seed.a.rows["prompt_templates"]
     setup = [f"update public.replies set prompt_template_id = '{pid}', prompt_version = 1 where id = '{rid}'"]
     with as_user(conn, seed.a.users["member"], seed.a.id, setup=setup) as c:
         c.execute("update public.replies set draft_body = 'Grab a slot: https://cal.com/x' where id = %s", [rid])
         with pytest.raises(errors.CheckViolation):
-            c.execute("update public.replies set intent = 'question' where id = %s", [rid])
+            c.execute("update public.replies set intent = 'not_interested' where id = %s", [rid])
+
+
+def test_signature_image_allowed_on_any_reply(conn: psycopg.Connection, seed: Seed) -> None:
+    rid = seed.a.rows["replies"]
+    pid = seed.a.rows["prompt_templates"]
+    setup = [
+        f"update public.replies set prompt_template_id = '{pid}', prompt_version = 1, intent = 'not_interested'"
+        f" where id = '{rid}'"
+    ]
+    with as_user(conn, seed.a.users["member"], seed.a.id, setup=setup) as c:
+        c.execute("update public.replies set draft_body = %s where id = %s", [f"<p>Understood.</p>{SIGNATURE}", rid])
 
 
 def test_rows_cannot_reference_another_tenants_rows(conn: psycopg.Connection, seed: Seed) -> None:

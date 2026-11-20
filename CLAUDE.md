@@ -1,9 +1,11 @@
 # Gazi AI: CLAUDE.md
 
 Multi-tenant B2B cold-outreach SaaS. Replaces the old n8n workflows.
-Pipeline: Apollo CSV → leads → LLM-personalised email → Instantly (email) / HeyReach (LinkedIn)
-→ reply webhook → intent classification → auto-reply or human-approved draft.
-Instantly/HeyReach are the sending layer. Follow-ups are sent by Instantly sequences, not by us.
+Pipeline: leads (Apollo CSV or Apollo API search + LLM buyer scoring) → LLM-personalised sequence
+→ Instantly (email) / HeyReach (LinkedIn) → reply webhook → intent classification → auto-reply or
+human-approved draft. Plus: Calendly booking tracking and weekly per-campaign report emails.
+Instantly/HeyReach are the sending layer: we create their campaigns, sequences and lists via their APIs,
+and their sequences send the follow-ups (we never schedule individual sends).
 
 ## Stack
 - frontend/  Next.js (App Router, TypeScript). Supabase JS for auth only; all data via the API.
@@ -62,8 +64,12 @@ Instantly/HeyReach are the sending layer. Follow-ups are sent by Instantly seque
      no invented facts, no unfilled placeholders).
    - `app/llm/guards.py` re-checks these rules in code. Never trust the prompt alone.
 6. Reply rules
-   - The calendar link is added by code, only when intent == "interested". The model never writes URLs.
-   - personalization_2..5 must contain no link of any kind. The guard rejects them and the job regenerates.
+   - Links in replies (calendar link, attachment_url) are added by code, only when intent is "interested"
+     or "question". The model never writes URLs. Every other intent: no links.
+   - personalization_2..5: no clickable links (<a> tags, raw URLs, www.). Resources are offered in words.
+     The signature image (<img>) is the only URL allowed, in sequence steps and replies. The guard strips
+     <img> tags before checking, rejects violations, and the job regenerates.
+   - DB backstops: constraints `follow_ups_have_no_links` and `links_only_when_interested_or_question`.
    - Below the confidence threshold, or when tenant policy says so → draft for approval, never auto-send.
 7. Webhooks
    - Routes: `/webhooks/instantly/{token}`, `/webhooks/heyreach/{token}`. One token per tenant+provider;
@@ -88,12 +94,16 @@ Instantly/HeyReach are the sending layer. Follow-ups are sent by Instantly seque
 - Clean start: no migration of the old n8n/Supabase data.
 - Intents: interested, not_interested, question, referral, out_of_office, unsubscribe, bounce, other.
 - No cross-channel stop: a LinkedIn reply does not pause the Instantly sequence, and vice versa.
+- Sequence length is per campaign (sequence_count); each step has its own subject + body.
+- Instantly and HeyReach campaigns are created via API by Gazi, not linked by hand.
+- In scope for v1: Apollo API lead pulling + buyer scoring, Calendly booking webhooks, weekly report
+  emails, error alerts.
 - Supabase JWT: HS256 (the self-host default), with the secret from a Docker secret. Verify ONLY in
   `app/core/auth.py`, so a later switch to asymmetric/JWKS is a single change.
 
 ## Provider gotchas
-- Instantly: use a direct webhook to our endpoint (the native reply trigger times out). Follow-ups
-  = sequence steps fed by custom variables subject, body, personalization_1..5.
+- Instantly: use a direct webhook to our endpoint (the native reply trigger times out). Sequence steps
+  are fed by lead custom variables `custom_subject_{n}` and `personalization_{n}` (n = step number).
 - HeyReach: conversation lookups are scoped by the SENDING ACCOUNT ID, not the lead ID. Store
   account_id + conversation_id on replies.thread_ref.
 - Nginx: client_max_body_size 50m on /v1/lead-imports (large Apollo CSVs). Keep it 1m elsewhere.
