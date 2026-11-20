@@ -107,7 +107,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .rail-link[aria-current="page"] { color: var(--ink); background: var(--paper); box-shadow: inset 0 0 0 1px var(--rule); }
 .rail-foot { margin-top: auto; display: grid; gap: 4px; }
 .rail-email { padding: 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rail-signout { justify-self: start; height: 32px; font-size: var(--t-14); }
+.rail-foot-actions { display: flex; gap: 2px; }
+.rail-signout { height: 32px; font-size: var(--t-14); display: inline-flex; align-items: center; text-decoration: none; }
 
 .switcher { position: relative; margin-top: 18px; }
 .switcher-button {
