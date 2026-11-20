@@ -17,6 +17,7 @@ from app.core.config import get_settings
 from app.core.crypto import Crypto
 from app.core.logging import configure_logging
 from app.db.pool import create_pool
+from app.llm.client import LlmClient
 from app.queue import QUEUE_IMPORTS, QUEUE_LLM, QUEUE_REPLIES, QUEUE_SYNC, ArqQueue
 from app.workers import jobs
 from app.workers.limits import RateLimiter
@@ -34,6 +35,7 @@ async def startup(ctx: dict[str, Any]) -> None:
     ctx["http"] = httpx.AsyncClient(timeout=httpx.Timeout(30, connect=10))
     ctx["queue"] = ArqQueue(ctx["redis"])
     ctx["limits"] = RateLimiter(ctx["redis"])
+    ctx["llm"] = LlmClient(ctx["http"], settings, ctx["limits"])
     log.info("worker.started")
 
 

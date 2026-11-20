@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     # Monthly token packs on top of the base plan, as "price_id:tokens,price_id:tokens".
     stripe_token_packs: str = ""
 
+    # OpenAI: ONE platform key (rule 2), from GAZI_OPENAI_API_KEY or the Docker secret gazi_openai_api_key.
+    openai_api_key: SecretStr | None = None
+
     # AI allowance per workspace and calendar month (UTC), before packs. Applies with or without billing.
     included_tokens: int = 2_000_000
     # Models a workspace may choose from (comma-separated), and the defaults for new workspaces.

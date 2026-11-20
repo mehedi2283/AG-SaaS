@@ -63,7 +63,7 @@ def crypto() -> Crypto:
 
 
 @pytest.fixture(scope="session")
-def api_dsn(dsn: str, seed: Seed, crypto: Crypto) -> str:  # noqa: F811
+def api_dsn(dsn: str, seed: Seed, crypto: Crypto) -> str:
     """A login role like production's: member of authenticated + gazi_worker, not superuser, no BYPASSRLS."""
     with psycopg.connect(dsn, autocommit=True) as conn:
         conn.execute(
@@ -105,7 +105,7 @@ class Harness:
 
 
 @pytest.fixture
-async def api(settings: Settings, crypto: Crypto, dsn: str) -> AsyncIterator[Harness]:  # noqa: F811
+async def api(settings: Settings, crypto: Crypto, dsn: str) -> AsyncIterator[Harness]:
     pool = await create_pool(settings.database_url.get_secret_value(), max_size=4)
     queue, auth_admin = FakeQueue(), FakeAuthAdmin()
     app = create_app(settings, pool=pool, queue=queue, auth_admin=auth_admin, crypto=crypto)
@@ -141,7 +141,7 @@ def auth(user_id: UUID, tenant_id: UUID | None = None, role: str | None = None, 
 
 
 @pytest.fixture
-def superuser(dsn: str) -> Iterator[psycopg.Connection]:  # noqa: F811
+def superuser(dsn: str) -> Iterator[psycopg.Connection]:
     with psycopg.connect(dsn, autocommit=True) as conn:
         yield conn
 

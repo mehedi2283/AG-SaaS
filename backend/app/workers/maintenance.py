@@ -14,7 +14,7 @@ import anyio
 import structlog
 
 from app.db.tenant_tx import as_worker
-from app.queue import QUEUE_IMPORTS, QUEUE_REPLIES, QUEUE_SYNC, JobQueue
+from app.queue import QUEUE_IMPORTS, QUEUE_LLM, QUEUE_REPLIES, QUEUE_SYNC, JobQueue
 
 log = structlog.get_logger()
 
@@ -22,6 +22,7 @@ log = structlog.get_logger()
 REQUEUE: dict[str, tuple[str, str, str]] = {
     "webhook_event": ("handle_webhook_event", QUEUE_REPLIES, "webhook"),
     "lead_import": ("import_leads", QUEUE_IMPORTS, "import"),
+    "lead_generation": ("generate_lead_sequence", QUEUE_LLM, "gen-lead"),
 }
 
 
