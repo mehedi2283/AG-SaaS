@@ -96,6 +96,24 @@ Studio shows every table, so you can see what each call stored.
 The API reloads by itself when code in `backend/app` changes. After changing `infra/.env`, run the start
 command for the API again with `--force-recreate`.
 
+## Billing (Stripe sandbox)
+
+Billing is on when `GAZI_STRIPE_SECRET_KEY` and `GAZI_STRIPE_PRICE_ID` are set in `infra/.env` (see
+`infra/.env.example`). Leave them empty and nothing is gated. With billing on, a new workspace sees the plan
+screen until checkout finishes.
+
+1. Forward Stripe's events to the API (keep it running): `stripe listen --forward-to localhost:8000/webhooks/stripe`.
+   The first time, put the `whsec_...` it prints into `GAZI_STRIPE_WEBHOOK_SECRET` and recreate the API.
+2. In the app, click **Start 14-day free trial** and pay with the test card `4242 4242 4242 4242`
+   (any future date, any CVC).
+3. Try the other states on that subscription in the Stripe Dashboard (sandbox): cancel it, or end the trial
+   early after checking out with `4000 0000 0000 0341` (a card that attaches but fails when charged).
+   A failed payment or a cancellation gives 7 days of grace, then the workspace pauses.
+   (`stripe trigger` makes events for a brand-new customer, which Gazi ignores as not one of its workspaces.)
+
+Subscription state only ever comes from signed Stripe webhooks; nothing in the app or API can mark a
+workspace as paid.
+
 ## If something goes wrong
 
 - **`readyz` says not ready:** Supabase isn't running. Run `npx supabase start --workdir infra`.

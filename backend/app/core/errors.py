@@ -29,6 +29,10 @@ class Unauthorized(AppError):
     status, code, title = 401, "unauthorized", "Unauthorized"
 
 
+class PaymentRequired(AppError):
+    status, code, title = 402, "payment_required", "Payment required"
+
+
 class Forbidden(AppError):
     status, code, title = 403, "forbidden", "Forbidden"
 

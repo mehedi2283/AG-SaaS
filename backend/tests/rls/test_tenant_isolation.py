@@ -30,6 +30,8 @@ READ_ROLE = {
     "replies": "viewer",
     "usage_logs": "admin",
     "audit_log": "admin",
+    "subscriptions": "viewer",
+    "billing_events": "admin",
 }
 
 # A column each table lets `authenticated` UPDATE (used for no-op cross-tenant update attempts).
@@ -553,3 +555,81 @@ def test_rows_cannot_reference_another_tenants_rows(conn: psycopg.Connection, se
             )
     finally:
         conn.execute("rollback")
+
+
+# ---------------------------------------------------------------------------
+# Billing
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "update public.subscriptions set status = 'active'",
+        "update public.subscriptions set lapsed_at = null",
+        "insert into public.billing_events (stripe_event_id, type, payload) values ('evt_x', 't', '{}')",
+    ],
+)
+def test_clients_cannot_write_billing_state(conn: psycopg.Connection, seed: Seed, statement: str) -> None:
+    """Only signature-verified Stripe webhooks (as gazi_worker) may change what a workspace has paid for."""
+    with as_user(conn, seed.a.users["owner"], seed.a.id) as c:
+        with pytest.raises(errors.InsufficientPrivilege):
+            c.execute(statement)
+
+
+@pytest.mark.parametrize(("role", "allowed"), [("member", False), ("admin", True), ("owner", True)])
+def test_saving_the_stripe_customer_needs_admin(conn: psycopg.Connection, seed: Seed, role: str, allowed: bool) -> None:
+    setup = [f"delete from public.subscriptions where tenant_id = '{seed.a.id}'"]
+    with as_user(conn, seed.a.users[role], seed.a.id, setup=setup) as c:
+        query = "insert into public.subscriptions (stripe_customer_id) values ('cus_new') returning tenant_id"
+        if allowed:
+            assert scalar(c, query) == seed.a.id
+        else:
+            with pytest.raises(errors.InsufficientPrivilege):
+                c.execute(query)
+
+
+def test_stripe_customer_resolves_to_its_tenant_for_workers_only(conn: psycopg.Connection, seed: Seed) -> None:
+    with as_worker(conn, None) as c:
+        assert scalar(c, "select app.resolve_stripe_customer('cus_alpha')") == seed.a.id
+        assert scalar(c, "select app.resolve_stripe_customer('cus_unknown')") is None
+    with as_user(conn, seed.a.users["owner"], seed.a.id) as c:
+        with pytest.raises(errors.InsufficientPrivilege):
+            c.execute("select app.resolve_stripe_customer('cus_bravo')")
+
+
+def test_worker_updates_subscription_only_in_job_tenant(conn: psycopg.Connection, seed: Seed) -> None:
+    with as_worker(conn, seed.a.id) as c:
+        assert (
+            c.execute("update public.subscriptions set status = 'past_due' where tenant_id = %s", [seed.b.id]).rowcount
+            == 0
+        )
+        assert c.execute("update public.subscriptions set status = 'past_due'").rowcount == 1
+
+
+@pytest.mark.parametrize(
+    ("status", "lapsed", "expected"),
+    [
+        ("active", None, "active"),
+        ("trialing", None, "active"),
+        ("past_due", "now() - interval '2 days'", "grace"),
+        ("canceled", "now() - interval '8 days'", "paused"),
+        ("incomplete_expired", None, "none"),
+        (None, None, "none"),  # no subscription row at all
+    ],
+)
+def test_billing_access_follows_status_and_grace(
+    conn: psycopg.Connection, seed: Seed, status: str | None, lapsed: str | None, expected: str
+) -> None:
+    if status is None:
+        setup = [f"delete from public.subscriptions where tenant_id = '{seed.a.id}'"]
+    else:
+        setup = [
+            f"update public.subscriptions set status = '{status}', lapsed_at = {lapsed or 'null'}"
+            f" where tenant_id = '{seed.a.id}'"
+        ]
+    with as_user(conn, seed.a.users["viewer"], seed.a.id, setup=setup) as c:
+        assert scalar(c, "select access from app.billing_access()") == expected
+    # Tenant B (active) is unaffected by A's state.
+    with as_user(conn, seed.b.users["viewer"], seed.b.id, setup=setup) as c:
+        assert scalar(c, "select access from app.billing_access()") == "active"

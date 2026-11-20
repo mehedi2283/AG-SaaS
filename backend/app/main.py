@@ -12,13 +12,14 @@ from arq import create_pool as create_redis
 from arq.connections import RedisSettings
 from fastapi import FastAPI, Request, Response
 
-from app.api.v1 import integrations, session, webhook_endpoints
+from app.api.v1 import billing, integrations, session, webhook_endpoints
 from app.core.config import Settings, get_settings
 from app.core.crypto import Crypto
 from app.core.errors import ServiceUnavailable, install_error_handlers
 from app.core.logging import configure_logging
 from app.db.pool import create_pool
 from app.providers.gotrue import AuthAdmin, GoTrueAdmin
+from app.providers.stripe import BillingProvider, StripeBilling
 from app.queue import ArqQueue, JobQueue
 from app.webhooks.router import router as webhooks_router
 
@@ -32,6 +33,7 @@ def create_app(
     queue: JobQueue | None = None,
     auth_admin: AuthAdmin | None = None,
     crypto: Crypto | None = None,
+    billing_provider: BillingProvider | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
@@ -61,6 +63,15 @@ def create_app(
             owned.append(client.aclose)
         else:
             app.state.auth_admin = auth_admin
+        if billing_provider is not None:
+            app.state.billing = billing_provider
+        elif settings.billing_enabled and settings.stripe_secret_key is not None:
+            secret = settings.stripe_webhook_secret
+            app.state.billing = StripeBilling(
+                settings.stripe_secret_key.get_secret_value(), secret.get_secret_value() if secret else None
+            )
+        else:
+            app.state.billing = None
         yield
         for close in reversed(owned):
             await close()
@@ -93,7 +104,7 @@ def create_app(
             raise ServiceUnavailable("A dependency isn't reachable.", code="not_ready") from exc
         return {"status": "ready"}
 
-    for router in (session.router, integrations.router, webhook_endpoints.router):
+    for router in (session.router, integrations.router, webhook_endpoints.router, billing.router):
         app.include_router(router, prefix="/v1")
     app.include_router(webhooks_router)
     return app

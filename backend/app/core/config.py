@@ -42,10 +42,28 @@ class Settings(BaseSettings):
 
     max_webhook_bytes: int = 512_000
 
+    # Where the web app lives; Stripe sends people back here after checkout and the billing portal.
+    app_url: str = "http://localhost:3000"
+
+    # Stripe (platform account, one key). Billing is on only when the key and price are set; production
+    # refuses to start without them, so a missing setting can never mean "everything is free".
+    stripe_secret_key: SecretStr | None = None
+    stripe_webhook_secret: SecretStr | None = None
+    stripe_price_id: str | None = None
+    trial_days: int = 14
+
+    @property
+    def billing_enabled(self) -> bool:
+        return bool(self.stripe_secret_key and self.stripe_price_id)
+
     @model_validator(mode="after")
     def _one_token_verifier(self) -> Settings:
         if not self.jwt_jwks_url and not self.jwt_secret:
             raise ValueError("set GAZI_JWT_JWKS_URL (ES256/RS256) and/or GAZI_JWT_SECRET (HS256)")
+        if self.environment == "production" and not (self.billing_enabled and self.stripe_webhook_secret):
+            raise ValueError(
+                "production needs GAZI_STRIPE_SECRET_KEY, GAZI_STRIPE_PRICE_ID and GAZI_STRIPE_WEBHOOK_SECRET"
+            )
         return self
 
 

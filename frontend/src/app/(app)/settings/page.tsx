@@ -1,5 +1,6 @@
 "use client";
 
+import { BillingSection } from "@/components/settings/BillingSection";
 import { ConnectedAccounts } from "@/components/settings/ConnectedAccounts";
 import { WebhookAddresses } from "@/components/settings/WebhookAddresses";
 import { useWorkspace } from "@/lib/workspace";
@@ -27,6 +28,8 @@ export default function SettingsPage() {
       ) : (
         <p className="notice notice-plain">Only admins can see and change connected accounts.</p>
       )}
+
+      <BillingSection />
 
       <section className="section">
         <div className="section-head">

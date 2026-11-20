@@ -4,12 +4,15 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 
-import { api, errorMessage, ROLE_RANK, type Me, type Membership, type Role } from "./api";
+import { api, errorMessage, ROLE_RANK, type Billing, type Me, type Membership, type Role } from "./api";
 import { supabase } from "./supabase";
 
 type WorkspaceState = {
   me: Me;
   active: Membership | null;
+  /** Null if billing couldn't be loaded; the API still enforces it, so the app just doesn't gate. */
+  billing: Billing | null;
+  refreshBilling: () => Promise<Billing | null>;
   can: (role: Role) => boolean;
   switchTo: (tenantId: string) => Promise<void>;
   create: (name: string, slug: string) => Promise<void>;
@@ -29,7 +32,7 @@ type Phase =
   | { kind: "loading" }
   | { kind: "error"; message: string }
   | { kind: "no-workspace"; me: Me }
-  | { kind: "ready"; me: Me };
+  | { kind: "ready"; me: Me; billing: Billing | null };
 
 /**
  * Signs the user in, loads /v1/me and makes sure a workspace is active. The active workspace lives in the
@@ -58,6 +61,14 @@ export function WorkspaceProvider({
     if (error) throw error;
   }, []);
 
+  const fetchBilling = useCallback(async (): Promise<Billing | null> => {
+    try {
+      return await api<Billing>("/v1/billing");
+    } catch {
+      return null;
+    }
+  }, []);
+
   const load = useCallback(async () => {
     try {
       let me = await api<Me>("/v1/me");
@@ -67,11 +78,17 @@ export function WorkspaceProvider({
         await activate(first.tenant_id);
         me = await api<Me>("/v1/me");
       }
-      setPhase({ kind: "ready", me });
+      setPhase({ kind: "ready", me, billing: await fetchBilling() });
     } catch (error) {
       setPhase({ kind: "error", message: errorMessage(error) });
     }
-  }, [activate]);
+  }, [activate, fetchBilling]);
+
+  const refreshBilling = useCallback(async () => {
+    const billing = await fetchBilling();
+    setPhase((current) => (current.kind === "ready" ? { ...current, billing } : current));
+    return billing;
+  }, [fetchBilling]);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,13 +142,15 @@ export function WorkspaceProvider({
     return {
       me: phase.me,
       active,
+      billing: phase.billing,
+      refreshBilling,
       can: (min: Role) => (role ? ROLE_RANK[role] >= ROLE_RANK[min] : false),
       switchTo,
       create,
       signOut,
       toast,
     };
-  }, [phase, switchTo, create, signOut, toast]);
+  }, [phase, refreshBilling, switchTo, create, signOut, toast]);
 
   if (phase.kind === "loading") {
     return (

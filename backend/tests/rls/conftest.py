@@ -273,6 +273,16 @@ def _seed_tenant(conn: psycopg.Connection, slug: str) -> TenantSeed:
         " values (%s, %s, '2026-11-09', '2026-11-15') returning id",
         [tid, t.rows["campaigns"]],
     )
+    t.rows["subscriptions"] = ins(
+        "insert into public.subscriptions (tenant_id, stripe_customer_id, stripe_subscription_id, status)"
+        " values (%s, %s, %s, 'active') returning id",
+        [tid, f"cus_{slug}", f"sub_{slug}"],
+    )
+    t.rows["billing_events"] = ins(
+        "insert into public.billing_events (tenant_id, stripe_event_id, type, payload)"
+        " values (%s, %s, 'customer.subscription.created', '{}') returning id",
+        [tid, f"evt_{slug}"],
+    )
     t.rows["usage_logs"] = ins(
         "insert into public.usage_logs (tenant_id, kind, provider, model, prompt_tokens, completion_tokens)"
         " values (%s, 'llm', 'openai', 'gpt-4o', 100, 50) returning id",

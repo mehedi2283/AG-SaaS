@@ -93,4 +93,20 @@ export type WebhookEndpoint = {
 
 export type WebhookEndpointCreated = WebhookEndpoint & { url_path: string; secret: string | null };
 
+export type BillingAccess = "active" | "grace" | "paused" | "none";
+
+export type Billing = {
+  enabled: boolean;
+  access: BillingAccess;
+  status: string;
+  trial_end: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  grace_ends_at: string | null;
+  trial_available: boolean;
+  plan: { price_id: string; unit_amount: number | null; currency: string; interval: string | null; trial_days: number } | null;
+};
+
+export type Redirect = { url: string };
+
 export const ROLE_RANK: Record<Role, number> = { viewer: 1, member: 2, admin: 3, owner: 4 };

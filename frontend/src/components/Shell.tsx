@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { BillingBanner, ChoosePlan } from "@/components/billing/Billing";
 import { useWorkspace } from "@/lib/workspace";
 
 const NAV = [
@@ -17,7 +18,9 @@ const ROLE_LABEL = { owner: "Owner", admin: "Admin", member: "Member", viewer: "
 
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { me } = useWorkspace();
+  const { me, billing } = useWorkspace();
+  // A workspace that has never subscribed sees the plan (with the free trial) instead of the app.
+  const needsPlan = billing?.enabled && billing.access === "none";
 
   return (
     <div className="shell">
@@ -42,7 +45,10 @@ export function Shell({ children }: { children: ReactNode }) {
           {me.email}
         </div>
       </nav>
-      <main className="main">{children}</main>
+      <main className="main">
+        <BillingBanner />
+        {needsPlan ? <ChoosePlan /> : children}
+      </main>
     </div>
   );
 }

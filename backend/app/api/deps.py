@@ -9,6 +9,7 @@ from app.core.auth import Principal, TenantContext, current_principal, current_t
 from app.core.crypto import Crypto
 from app.db.tenant_tx import as_user
 from app.providers.gotrue import AuthAdmin
+from app.providers.stripe import BillingProvider
 from app.queue import JobQueue
 
 
@@ -30,6 +31,12 @@ def get_queue(request: Request) -> JobQueue:
 def get_auth_admin(request: Request) -> AuthAdmin:
     admin: AuthAdmin = request.app.state.auth_admin
     return admin
+
+
+def get_billing(request: Request) -> BillingProvider | None:
+    """The Stripe client, or None when billing isn't configured (local development)."""
+    billing: BillingProvider | None = request.app.state.billing
+    return billing
 
 
 async def user_db(

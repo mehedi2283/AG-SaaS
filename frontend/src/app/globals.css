@@ -181,6 +181,18 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .welcome { width: 100%; max-width: 440px; }
 .welcome form { display: grid; gap: 18px; margin-top: 28px; }
 
+/* ---------- billing ---------- */
+.banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 12px var(--gutter); border-bottom: 1px solid var(--rule); font-size: var(--t-14);
+}
+.banner-warn { background: #fdf6e7; color: var(--ooo); }
+.banner-danger { background: var(--danger-wash); color: var(--danger); }
+.banner .btn { color: var(--ink); }
+.plan { margin-top: 28px; padding: 20px; border: 1px solid var(--rule-strong); border-radius: var(--radius); }
+.plan-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 6px; }
+.plan-price { font-size: var(--t-20); font-weight: 600; }
+
 /* ---------- toast ---------- */
 .toast {
   position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
