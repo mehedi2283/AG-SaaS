@@ -20,10 +20,12 @@ _COMMON_NOT = """You must NOT:
 - include any link, URL, web address or email address
 - invent facts, numbers, clients, results or claims that are not in the information given
 - leave placeholders such as [First Name], {{company}} or XX
-- mention that you are an AI or that the message was generated"""
+- mention that you are an AI or that the message was generated
+- list or recite the buyer's details back to them; use at most one, and only if it makes the message more relevant"""
 
 BUILTIN: dict[str, dict[str, Any]] = {
     "email_step": {
+        "version": 2,
         "temperature": 0.7,
         "system": f"""You write one step of a cold email sequence from a B2B exporter to a buyer.
 Write like a person: short, specific, plain. 60 to 120 words. One clear, low-pressure question or call to action.
@@ -43,6 +45,7 @@ Details and proof (the only facts you may use):
 Sender: {{sender_name}}, {{sender_title}} at {{sender_company}}
 
 Buyer: {{lead_name}}, {{lead_title}} at {{lead_company}} ({{lead_industry}}, {{lead_location}}, {{lead_size}})
+Buyer details: {{lead_details}}
 
 This is step {{step}} of {{steps}}. Angle for this step: {{angle}}
 
@@ -50,6 +53,7 @@ Earlier steps already sent (do not repeat them):
 {{previous}}""",
     },
     "linkedin_step": {
+        "version": 2,
         "temperature": 0.7,
         "system": f"""You write one LinkedIn message in an outreach sequence from a B2B exporter to a buyer.
 Conversational and brief: 2 to 4 short sentences. Step 1 is a connection request and must be under 190 characters.
@@ -68,6 +72,7 @@ Details and proof (the only facts you may use):
 Sender: {{sender_name}}, {{sender_title}} at {{sender_company}}
 
 Buyer: {{lead_name}}, {{lead_title}} at {{lead_company}} ({{lead_industry}}, {{lead_location}})
+Buyer details: {{lead_details}}
 
 This is step {{step}} of {{steps}}. Angle for this step: {{angle}}
 
@@ -75,6 +80,7 @@ Earlier messages already sent (do not repeat them):
 {{previous}}""",
     },
     "reply_classify": {
+        "version": 1,
         "temperature": 0.0,
         "system": """You classify a buyer's reply to a cold outreach message.
 Intents:
@@ -99,6 +105,7 @@ Their reply:
 {{reply}}""",
     },
     "reply_draft": {
+        "version": 1,
         "temperature": 0.5,
         "system": """You draft a reply to a buyer who answered a cold outreach message, for the seller to send.
 Answer what they said, briefly and warmly, in 40 to 120 words. Use only facts from the seller's details.
@@ -129,6 +136,7 @@ Their reply:
 {{reply}}""",
     },
     "lead_score": {
+        "version": 2,
         "temperature": 0.0,
         "system": """You judge how likely a person is to be a real buyer for a B2B exporter's offer.
 Score 1 (not a buyer) to 10 (ideal buyer and decision maker), with a confidence from 1 to 100.
@@ -142,9 +150,11 @@ Return JSON with "buyer_score", "confidence", "is_decision_maker" and a one-sent
 {{offer_summary}}
 {{offer_details}}
 
-Person: {{lead_name}}, {{lead_title}} at {{lead_company}} ({{lead_industry}}, {{lead_location}}, {{lead_size}})""",
+Person: {{lead_name}}, {{lead_title}} at {{lead_company}} ({{lead_industry}}, {{lead_location}}, {{lead_size}})
+Details: {{lead_details}}""",
     },
     "weekly_report": {
+        "version": 1,
         "temperature": 0.3,
         "system": """You write a short weekly summary of an outreach campaign for the business owner.
 Plain and honest: what happened this week, what's working, and one suggestion. 80 to 160 words.
@@ -187,22 +197,26 @@ class Prompt:
 
 
 async def ensure_prompt(conn: asyncpg.Connection, kind: str, default_model: str) -> Prompt:
-    """The tenant's active template for this kind, installing built-in version 1 the first time (worker only)."""
+    """The tenant's active template for this kind (worker only). Installs the built-in version the first time, and
+    replaces an older built-in ('default') version when the code ships a new one; custom templates are left alone."""
     query = (
-        "select id, version, system_prompt, user_template, temperature from public.prompt_templates"
+        "select id, name, version, system_prompt, user_template, temperature from public.prompt_templates"
         " where kind = $1 and is_active order by version desc limit 1"
     )
     row = await conn.fetchrow(query, kind)
-    if row is None:
-        builtin = BUILTIN[kind]
+    builtin = BUILTIN[kind]
+    if row is None or (row["name"] == "default" and row["version"] < builtin["version"]):
+        if row is not None:
+            await conn.execute("update public.prompt_templates set is_active = false where id = $1", row["id"])
         await conn.execute(
             """
             insert into public.prompt_templates (kind, name, version, system_prompt, user_template, model, temperature,
                                                  is_active)
-            values ($1, 'default', 1, $2, $3, $4, $5, true)
+            values ($1, 'default', $2, $3, $4, $5, $6, true)
             on conflict (tenant_id, kind, name, version) do nothing
             """,
             kind,
+            builtin["version"],
             builtin["system"],
             builtin["user"],
             default_model,

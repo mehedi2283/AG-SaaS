@@ -57,6 +57,10 @@ class ApolloSearchIn(BaseModel):
         return "Apollo: " + (" / ".join(p for p in parts if p) or "search")
 
 
+def _joined(values: Any) -> str | None:
+    return (", ".join(str(v) for v in values[:10]) or None) if isinstance(values, list) else None
+
+
 def _lead(person: dict[str, Any]) -> dict[str, Any] | None:
     email = normalize_email(person.get("email"))
     if email is None:
@@ -75,7 +79,18 @@ def _lead(person: dict[str, Any]) -> dict[str, Any] | None:
         "city": clean_text(person.get("city")),
         "country": clean_text(person.get("country")),
         "company_size": int(size) if isinstance(size, int | float) else None,
-        "raw": {"apollo_person_id": person.get("id"), "seniority": person.get("seniority")},
+        # Same keys as the CSV columns, so generation.lead_details reads both.
+        "raw": {
+            "apollo_person_id": person.get("id"),
+            "seniority": person.get("seniority"),
+            "departments": _joined(person.get("departments")),
+            "keywords": _joined(org.get("keywords")),
+            "technologies": _joined(org.get("technology_names")),
+            "annual_revenue": org.get("annual_revenue_printed"),
+            "total_funding": org.get("total_funding_printed"),
+            "latest_funding": org.get("latest_funding_stage"),
+            "last_raised_at": org.get("latest_funding_round_date"),
+        },
         "apollo_person_id": person.get("id"),
     }
 

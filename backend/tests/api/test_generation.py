@@ -137,7 +137,8 @@ async def test_generation_writes_each_step_and_regenerates_on_a_guard_hit(
         "select step, status, body, prompt_version, model, attempt from public.lead_messages where lead_id = %s order by step",
         [lead_id],
     ).fetchall()
-    assert [(m[0], m[1], m[3], m[4]) for m in messages] == [(1, "ok", 1, "gpt-5.5"), (2, "ok", 1, "gpt-5.5")]
+    assert [(m[0], m[1], m[3], m[4]) for m in messages] == [(1, "ok", 2, "gpt-5.5"), (2, "ok", 2, "gpt-5.5")]
+    assert "Buyer details: Seniority: Head" in seen[0]["messages"][-1]["content"]  # the CSV's extra column
     assert "https://" not in messages[1][2] and messages[1][5] == 2
     assert superuser.execute("select status from public.leads where id = %s", [lead_id]).fetchone() == ("ready",)
     usage = superuser.execute(
@@ -197,3 +198,36 @@ async def test_generation_needs_an_offer(lapi: LeadsHarness, seed: Seed) -> None
     campaign = await new_campaign(lapi, headers)
     r = await lapi.client.post(f"/v1/campaigns/{campaign['id']}/generate", headers=headers)
     assert r.status_code == 422 and r.json()["error_code"] == "offer_missing"
+
+
+async def test_an_older_builtin_prompt_is_replaced_by_the_new_version(
+    lapi: LeadsHarness,
+    seed: Seed,
+    settings: Settings,
+    superuser: psycopg.Connection,
+) -> None:
+    tenant_id, headers, campaign = await setup_campaign(lapi, seed)
+    superuser.execute(
+        "insert into public.prompt_templates (tenant_id, kind, name, version, system_prompt, user_template, model,"
+        " is_active) values (%s, 'email_step', 'default', 1, 'Old. You must NOT link.', 'Hi {{lead_name}}', 'gpt-5.5',"
+        " true)",
+        [tenant_id],
+    )
+    await lapi.client.post(f"/v1/campaigns/{campaign['id']}/generate", headers=headers)
+    queue = FakeQueue()
+    ctx = worker_ctx(lapi, settings, openai([], []), queue)
+    job = next(j for j in lapi.queue.jobs if j["function"] == "generate_campaign")
+    await generate_campaign(ctx, str(tenant_id), *job["args"])
+    lead_id = next(j for j in queue.jobs if j["function"] == "generate_lead_sequence")["args"][0]
+    await generate_lead_sequence(ctx, str(tenant_id), lead_id)
+
+    rows = superuser.execute(
+        "select version, is_active from public.prompt_templates where tenant_id = %s and kind = 'email_step'"
+        " order by version",
+        [tenant_id],
+    ).fetchall()
+    assert rows == [(1, False), (2, True)]
+    versions = superuser.execute(
+        "select distinct prompt_version from public.lead_messages where lead_id = %s", [lead_id]
+    )
+    assert versions.fetchall() == [(2,)]

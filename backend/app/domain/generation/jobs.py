@@ -11,6 +11,7 @@ import asyncpg
 import structlog
 
 from app.db.tenant_tx import as_worker
+from app.domain.leads.normalize import clean_text
 from app.domain.tenants.service import resolve_ai_settings
 from app.llm.client import LlmClient
 from app.llm.guards import check_step
@@ -25,6 +26,27 @@ MAX_ATTEMPTS = 3
 _DONE = ("ok", "approved", "pushed")
 
 
+# Extra Apollo columns kept in leads.raw (CSV headers after normalize_header; apollo._lead uses the same keys).
+_DETAILS = (
+    ("seniority", "Seniority"),
+    ("departments", "Department"),
+    ("keywords", "Company focus"),
+    ("technologies", "Uses"),
+    ("annual_revenue", "Annual revenue"),
+    ("total_funding", "Total funding"),
+    ("latest_funding", "Latest funding round"),
+    ("latest_funding_amount", "Latest round amount"),
+    ("last_raised_at", "Last raised"),
+)
+
+
+def lead_details(raw: Mapping[str, Any] | None) -> str | None:
+    """The useful extra columns as one line, each value capped so a huge cell can't flood the prompt."""
+    raw = raw or {}
+    values = ((label, clean_text(str(raw[key]), 200)) for key, label in _DETAILS if raw.get(key) is not None)
+    return "; ".join(f"{label}: {text}" for label, text in values if text) or None
+
+
 def lead_context(lead: Mapping[str, Any] | asyncpg.Record) -> dict[str, Any]:
     name = " ".join(p for p in (lead["first_name"], lead["last_name"]) if p)
     location = ", ".join(p for p in (lead["city"], lead["country"]) if p)
@@ -35,6 +57,7 @@ def lead_context(lead: Mapping[str, Any] | asyncpg.Record) -> dict[str, Any]:
         "lead_industry": lead["industry"],
         "lead_location": location or None,
         "lead_size": f"{lead['company_size']} employees" if lead["company_size"] else None,
+        "lead_details": lead_details(lead.get("raw")),
     }
 
 

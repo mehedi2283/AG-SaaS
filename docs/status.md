@@ -111,3 +111,9 @@ the workflow code and must be checked against a real event before the reply pipe
 - Inside SECURITY DEFINER functions `app.tenant_id()` reads JWT claims (current_user is gazi_definer); functions
   called by workers read `current_setting('app.tenant_id')` instead.
 - Campaigns are one channel each (email or LinkedIn); the owner didn't ask for mixed campaigns.
+- 2026-11-21: prompts get `{{lead_details}}` (extra Apollo columns from `leads.raw`: seniority, technologies,
+  funding, revenue, keywords; at most one used per message). Built-in prompts carry a `version`; `ensure_prompt`
+  retires an older built-in ('default') version and installs the new one. Bump the version when changing wording.
+- Python 3.13 can't install `pyyaml` without C++ build tools; run the backend with `UV_PYTHON=3.12`.
+- The current Stripe CLI needs `--events` on `stripe listen` (the subscription events in
+  `app/domain/billing/service.py`).

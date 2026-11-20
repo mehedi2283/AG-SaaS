@@ -84,3 +84,15 @@ def test_parse_csv_needs_an_email_column() -> None:
 def test_parse_csv_reads_semicolons_and_windows_encoding() -> None:
     parsed = parse_csv("Email;Company\nzoë@café.fr;Café\n".encode("cp1252"))
     assert parsed.leads[0]["company"] == "Café"
+
+
+def test_lead_details_lists_known_columns_and_caps_each_value() -> None:
+    from app.domain.generation.jobs import lead_details
+
+    raw = {"technologies": "Shopify, " + "x" * 500, "total_funding": "$5M", "seniority": "", "unknown": "skip me"}
+    details = lead_details(raw)
+    assert details is not None
+    assert details.startswith("Uses: Shopify, ") and "; Total funding: $5M" in details
+    assert "skip me" not in details and "Seniority" not in details
+    assert len(details) < 260  # 200 per value plus labels
+    assert lead_details(None) is None and lead_details({"seniority": "  "}) is None
