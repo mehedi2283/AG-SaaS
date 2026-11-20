@@ -47,4 +47,4 @@ strict = true
 plugins = ["pydantic.mypy"]
 
 [tool.ruff.lint.flake8-bugbear]
-extend-immutable-calls = ["fastapi.Depends", "fastapi.Body", "fastapi.Header", "app.core.auth.require_role"]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Body", "fastapi.Header", "fastapi.Query", "app.core.auth.require_role"]

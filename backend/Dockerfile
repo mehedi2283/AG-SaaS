@@ -15,7 +15,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY app ./app
 COPY scripts ./scripts
 
-RUN useradd --create-home --uid 10001 gazi
+RUN useradd --create-home --uid 10001 gazi  && mkdir -p /data/imports && chown gazi:gazi /data/imports
 USER gazi
 
 EXPOSE 8000

@@ -42,6 +42,10 @@ class Settings(BaseSettings):
 
     max_webhook_bytes: int = 512_000
 
+    # Uploaded CSVs: a volume shared by the API and the import worker, kept 7 days (rule 8).
+    imports_dir: str = "/data/imports"
+    max_import_bytes: int = 50 * 1024 * 1024  # Nginx allows 50m on /v1/lead-imports
+
     # Where the web app lives; Stripe sends people back here after checkout and the billing portal.
     app_url: str = "http://localhost:3000"
 

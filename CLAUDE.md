@@ -25,7 +25,8 @@ preferences), then `docs/architecture.md`. Update `docs/status.md` at the end of
 - RLS tests only:  cd backend && uv run pytest tests/rls
                    (needs GAZI_TEST_DSN = superuser DSN of a disposable Postgres 15+; fails if unset)
 - Lint/type:       cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app
-- Worker (local):  cd backend && uv run arq app.workers.settings.DefaultWorker
+- Workers (local): started by docker-compose.dev.yml (worker-replies, -llm, -imports, -sync). One worker
+                   class per queue: uv run arq app.workers.settings.<Replies|Llm|Imports|Sync>Worker
 - Frontend:        cd frontend && npm run dev | npm run lint | npm run build
 - New migration:   add infra/supabase/migrations/<YYYYMMDDHHMM>_<name>.sql (never edit an applied one)
 

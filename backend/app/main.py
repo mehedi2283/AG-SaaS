@@ -12,7 +12,7 @@ from arq import create_pool as create_redis
 from arq.connections import RedisSettings
 from fastapi import FastAPI, Request, Response
 
-from app.api.v1 import admin, billing, integrations, session, webhook_endpoints, workspace
+from app.api.v1 import admin, billing, campaigns, integrations, leads, senders, session, webhook_endpoints, workspace
 from app.core.config import Settings, get_settings
 from app.core.crypto import Crypto
 from app.core.errors import ServiceUnavailable, install_error_handlers
@@ -111,6 +111,9 @@ def create_app(
         billing.router,
         workspace.router,
         admin.router,
+        senders.router,
+        campaigns.router,
+        leads.router,
     ):
         app.include_router(router, prefix="/v1")
     app.include_router(webhooks_router)

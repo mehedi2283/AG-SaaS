@@ -18,9 +18,36 @@ services:
     volumes:
       - ../backend/app:/app/app
       - ../backend/scripts:/app/scripts
+      - imports-data:/data/imports
     ports: ["8000:8000"]
     extra_hosts: ["host.docker.internal:host-gateway"]
     depends_on: [redis]
 
+  # Background workers, one per queue (replies never wait behind imports). They reload when code changes.
+  worker-replies: &worker
+    build: ../backend
+    env_file: .env
+    environment:
+      GAZI_REDIS_URL: redis://redis:6379/0
+    command: ["arq", "--watch", "/app/app", "app.workers.settings.RepliesWorker"]
+    volumes:
+      - ../backend/app:/app/app
+      - imports-data:/data/imports
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on: [redis]
+
+  worker-llm:
+    <<: *worker
+    command: ["arq", "--watch", "/app/app", "app.workers.settings.LlmWorker"]
+
+  worker-imports:
+    <<: *worker
+    command: ["arq", "--watch", "/app/app", "app.workers.settings.ImportsWorker"]
+
+  worker-sync:
+    <<: *worker
+    command: ["arq", "--watch", "/app/app", "app.workers.settings.SyncWorker"]
+
 volumes:
   redis-data: {}
+  imports-data: {}
