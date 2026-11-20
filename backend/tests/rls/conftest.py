@@ -23,7 +23,7 @@ from pathlib import Path
 import psycopg
 import pytest
 from psycopg import sql
-from psycopg.conninfo import conninfo_to_dict, make_conninfo
+from psycopg.conninfo import make_conninfo
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MIGRATIONS_DIR = REPO_ROOT / "infra" / "supabase" / "migrations"
@@ -60,7 +60,7 @@ def dsn() -> Iterator[str]:
     db_name = f"gazi_rls_{uuid.uuid4().hex[:12]}"
     with psycopg.connect(admin_dsn, autocommit=True) as admin:
         admin.execute(sql.SQL("create database {}").format(sql.Identifier(db_name)))
-    test_dsn = make_conninfo(**{**conninfo_to_dict(admin_dsn), "dbname": db_name})
+    test_dsn = make_conninfo(admin_dsn, dbname=db_name)
     try:
         with psycopg.connect(test_dsn, autocommit=True) as conn:
             conn.execute(SHIM.read_text())
@@ -74,7 +74,11 @@ def dsn() -> Iterator[str]:
         yield test_dsn
     finally:
         with psycopg.connect(admin_dsn, autocommit=True) as admin:
-            admin.execute(sql.SQL("drop database if exists {} with (force)").format(sql.Identifier(db_name)))
+            admin.execute(
+                sql.SQL("drop database if exists {} with (force)").format(
+                    sql.Identifier(db_name)
+                )
+            )
 
 
 @pytest.fixture(scope="session")
@@ -115,20 +119,26 @@ def as_user(
         for stmt in setup or []:
             conn.execute(stmt)
         conn.execute("set local role authenticated")
-        conn.execute("select set_config('request.jwt.claims', %s, true)", [json.dumps(claims)])
+        conn.execute(
+            "select set_config('request.jwt.claims', %s, true)", [json.dumps(claims)]
+        )
         yield conn
     finally:
         conn.execute("rollback")
 
 
 @contextmanager
-def as_worker(conn: psycopg.Connection, tenant_id: uuid.UUID | None) -> Iterator[psycopg.Connection]:
+def as_worker(
+    conn: psycopg.Connection, tenant_id: uuid.UUID | None
+) -> Iterator[psycopg.Connection]:
     """Run as an ARQ job does: role `gazi_worker` with app.tenant_id set by @tenant_job."""
     conn.execute("begin")
     try:
         conn.execute("set local role gazi_worker")
         if tenant_id is not None:
-            conn.execute("select set_config('app.tenant_id', %s, true)", [str(tenant_id)])
+            conn.execute(
+                "select set_config('app.tenant_id', %s, true)", [str(tenant_id)]
+            )
         yield conn
     finally:
         conn.execute("rollback")
@@ -145,7 +155,9 @@ def as_role(conn: psycopg.Connection, role: str) -> Iterator[psycopg.Connection]
         conn.execute("rollback")
 
 
-def scalar(conn: psycopg.Connection, query: str, params: list[object] | None = None) -> object:
+def scalar(
+    conn: psycopg.Connection, query: str, params: list[object] | None = None
+) -> object:
     row = conn.execute(query, params or []).fetchone()
     assert row is not None
     return row[0]
@@ -161,7 +173,9 @@ def token_hash(token: str) -> bytes:
 
 
 def _create_auth_user(conn: psycopg.Connection, email: str) -> uuid.UUID:
-    row = conn.execute("insert into auth.users (email) values (%s) returning id", [email]).fetchone()
+    row = conn.execute(
+        "insert into auth.users (email) values (%s) returning id", [email]
+    ).fetchone()
     assert row is not None
     return row[0]
 

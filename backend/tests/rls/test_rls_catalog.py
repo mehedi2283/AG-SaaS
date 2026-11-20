@@ -11,10 +11,17 @@ NO_TENANT_ID = {"tenants", "users"}
 
 
 def _public_tables(conn: psycopg.Connection) -> list[str]:
-    return [r[0] for r in conn.execute("select tablename from pg_tables where schemaname = 'public' order by 1")]
+    return [
+        r[0]
+        for r in conn.execute(
+            "select tablename from pg_tables where schemaname = 'public' order by 1"
+        )
+    ]
 
 
-def test_every_table_has_rls_enabled_and_forced(conn: psycopg.Connection, seed: Seed) -> None:
+def test_every_table_has_rls_enabled_and_forced(
+    conn: psycopg.Connection, seed: Seed
+) -> None:
     rows = conn.execute(
         """
         select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -51,7 +58,9 @@ def test_every_tenant_table_has_not_null_tenant_id_defaulting_to_context(
         ).fetchone()
         assert row is not None, f"{table} has no tenant_id column"
         assert row[0] == "NO", f"{table}.tenant_id is nullable"
-        assert row[1] == "app.tenant_id()", f"{table}.tenant_id default is {row[1]!r}, expected app.tenant_id()"
+        assert row[1] == "app.tenant_id()", (
+            f"{table}.tenant_id default is {row[1]!r}, expected app.tenant_id()"
+        )
 
 
 def test_no_role_can_write_tenant_id(conn: psycopg.Connection, seed: Seed) -> None:
@@ -63,10 +72,14 @@ def test_no_role_can_write_tenant_id(conn: psycopg.Connection, seed: Seed) -> No
           and grantee in ('authenticated', 'gazi_worker', 'anon', 'service_role')
         """
     ).fetchall()
-    assert rows == [], f"tenant_id must only come from app.tenant_id(); writable by: {rows}"
+    assert rows == [], (
+        f"tenant_id must only come from app.tenant_id(); writable by: {rows}"
+    )
 
 
-def test_anon_and_service_role_have_no_table_privileges(conn: psycopg.Connection, seed: Seed) -> None:
+def test_anon_and_service_role_have_no_table_privileges(
+    conn: psycopg.Connection, seed: Seed
+) -> None:
     rows = conn.execute(
         """
         select table_name, grantee, privilege_type from information_schema.role_table_grants
@@ -86,7 +99,9 @@ def test_no_policy_applies_to_public(conn: psycopg.Connection, seed: Seed) -> No
     assert rows == [], f"policies must name a role explicitly: {rows}"
 
 
-def test_security_definer_functions_are_locked_down(conn: psycopg.Connection, seed: Seed) -> None:
+def test_security_definer_functions_are_locked_down(
+    conn: psycopg.Connection, seed: Seed
+) -> None:
     rows = conn.execute(
         """
         select p.proname, pg_get_userbyid(p.proowner), p.proconfig,
@@ -98,5 +113,5 @@ def test_security_definer_functions_are_locked_down(conn: psycopg.Connection, se
     assert rows, "expected SECURITY DEFINER functions"
     for name, owner, config, anon_exec in rows:
         assert owner == "gazi_definer", f"{name} is owned by {owner}"
-        assert config and "search_path=\"\"" in config, f"{name} must pin search_path=''"
+        assert config and 'search_path=""' in config, f"{name} must pin search_path=''"
         assert not anon_exec, f"anon can execute {name}"
