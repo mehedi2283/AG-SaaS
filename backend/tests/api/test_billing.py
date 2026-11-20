@@ -387,13 +387,13 @@ async def test_ai_settings_defaults_and_admin_changes(api: Harness, seed: Seed, 
     body = (await api.client.get("/v1/workspace/ai-settings", headers=headers)).json()
     assert body["auto_reply"] is False
     assert body["writing_model"] == "gpt-5.5" and body["classify_model"] == "gpt-4o-mini"
-    assert "gpt-5.5-mini" in body["available_models"]
+    assert "gpt-5.4-mini" in body["available_models"]
 
     r = await api.client.patch(
-        "/v1/workspace/ai-settings", json={"auto_reply": True, "writing_model": "gpt-5.5-mini"}, headers=headers
+        "/v1/workspace/ai-settings", json={"auto_reply": True, "writing_model": "gpt-5.4-mini"}, headers=headers
     )
     assert r.status_code == 200, r.text
-    assert r.json()["auto_reply"] is True and r.json()["writing_model"] == "gpt-5.5-mini"
+    assert r.json()["auto_reply"] is True and r.json()["writing_model"] == "gpt-5.4-mini"
     assert r.json()["classify_model"] == "gpt-4o-mini"
 
     r = await api.client.patch("/v1/workspace/ai-settings", json={"writing_model": "gpt-9"}, headers=headers)

@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     # AI allowance per workspace and calendar month (UTC), before packs. Applies with or without billing.
     included_tokens: int = 2_000_000
     # Models a workspace may choose from (comma-separated), and the defaults for new workspaces.
-    llm_models: str = "gpt-5.5,gpt-5.5-mini,gpt-4o-mini"
+    llm_models: str = "gpt-5.5,gpt-5.4-mini,gpt-4o-mini"
     default_writing_model: str = "gpt-5.5"
     default_classify_model: str = "gpt-4o-mini"
 
