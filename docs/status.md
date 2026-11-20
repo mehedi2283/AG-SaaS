@@ -4,24 +4,24 @@ Read this first in a new session, after `CLAUDE.md`. It holds what the first bui
 in the code: where things stand, what was found in the old n8n setup, open questions and the owner's
 preferences. Update it at the end of each session.
 
-Last updated: 2026-11-20.
+Last updated: 2026-11-20 (billing session).
 
 ## Where things stand
 
 | Area | State | Branch |
 |---|---|---|
-| Schema, RLS, tests (Postgres) | Done. 188 RLS tests. | in `claude/frontend` |
-| Backend core (auth, crypto, errors, tenant DB context, workspaces, integrations, webhook endpoints + intake) | Done. 218 tests total, ruff + strict mypy clean. | in `claude/frontend` |
-| Local dev (Supabase CLI, Docker, `infra/dev-setup.ps1`) | Done. Verified on the owner's Windows PC. | in `claude/frontend` |
-| Frontend: sign-in, workspace setup and switcher, Settings (accounts, webhook addresses) | Done. Verified in a browser against the local stack. | `claude/frontend` |
+| Schema, RLS, tests (Postgres) | Done. | `main` |
+| Backend core (auth, crypto, errors, tenant DB context, workspaces, integrations, webhook endpoints + intake) | Done. 251 tests total, ruff + strict mypy clean. | `main` |
+| Local dev (Supabase CLI, Docker, `infra/dev-setup.ps1`) | Done. Verified on the owner's Windows PC. | `main` |
+| Frontend: sign-in, workspace setup and switcher, Settings (accounts, webhook addresses) | Done. Verified in a browser against the local stack. | `main` |
+| Billing (Stripe): plan screen, 14-day trial checkout, portal, webhooks, grace/paused banner | Done. Verified end to end against the Stripe sandbox (API + webhooks); screens not yet checked in a browser. `ensure_access` is ready but not wired: launches and AI don't exist yet. | `main` |
 | Frontend: Replies, Campaigns, Leads | Empty states only; each waits for its backend. | |
 | Reply pipeline (worker, classify, draft, guards, send) | **Next.** | |
 | Leads (CSV import + duplicates, Apollo search + scoring), sequence generation, launching Instantly/HeyReach campaigns | Not started. | |
 | Calendly bookings, weekly reports, error alerts | Not started. | |
 | Production deployment (compose, Nginx, Certbot, self-hosted Supabase) | Not started. | |
 
-`claude/frontend` contains all work so far (each branch was built on the previous one). `main` only has the
-first two commits until the owner merges.
+All work is on `main` (pushed 2026-11-20 at the owner's request; `claude/frontend` matches it).
 
 ## What the old n8n setup does (reviewed 2026-11-20, read-only)
 
@@ -54,7 +54,17 @@ the workflow code and must be checked against a real event before the reply pipe
 | Models | gpt-5.5 for writing; gpt-4o-mini for classification and scoring |
 | Monthly LLM token cap per workspace | 2M tokens |
 | Auto-send | Only at confidence >= 0.85; `interested` and `question` always wait for approval; others auto-send |
-| Billing / plans | Not in v1 |
+| Billing / plans | **Decided 2026-11-20, built:** one plan, $99/month USD per workspace, 14-day trial with card up front (one trial per workspace), 7 days of grace after a failed payment or cancellation, then launches and AI pause (data stays readable). Stripe Tax off until go-live. |
+
+## Billing notes
+
+- Stripe sandbox product `prod_Vf91FyWl5If50d`, price `price_1Udoj5K75IMqipLxWl7pVFJj` (lookup key
+  `gazi_standard_monthly`). Live mode needs its own product, price, keys and webhook endpoint.
+- Keys live in `infra/.env` locally; Docker secrets in production. Production refuses to start without them.
+- The Stripe webhook is applied inline (one row update), not queued, because there are no workers yet. It can
+  move to the queue once the worker exists.
+- Stripe CLI is installed via winget; local testing: `stripe listen --forward-to localhost:8000/webhooks/stripe`.
+- The owner should roll the sandbox secret key: it appeared in a CLI error output during testing.
 
 ## Owner's preferences
 
