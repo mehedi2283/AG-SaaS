@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { formatDate } from "@/components/billing/Billing";
+import { ApolloSearch } from "@/components/leads/ApolloSearch";
 import { DuplicateReview } from "@/components/leads/DuplicateReview";
 import { api, errorMessage, uploadFile, type LeadImport } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace";
@@ -18,6 +19,8 @@ const ERROR_LABEL: Record<string, string> = {
   no_email_column: "The file has no email column.",
   empty_file: "The file is empty.",
   file_missing: "The file was deleted before it could be imported. Upload it again.",
+  apollo_not_connected: "Apollo isn't connected. Add its key in Settings.",
+  provider_rejected: "Apollo refused the search. Check the key and your credits.",
 };
 
 /** Upload an Apollo CSV into a campaign, follow the import, and review duplicates. */
@@ -86,6 +89,7 @@ export function ImportPanel({ campaignId, onImported }: { campaignId: string; on
           <label htmlFor="csv-file" className={`btn btn-primary${uploading ? " is-busy" : ""}`} aria-disabled={uploading}>
             {uploading ? "Uploading…" : "Choose CSV file"}
           </label>
+          <ApolloSearch campaignId={campaignId} onStarted={() => void load()} />
         </div>
       )}
 

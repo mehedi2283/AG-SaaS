@@ -8,13 +8,14 @@ import { CampaignForm } from "@/components/campaigns/CampaignForm";
 import { CampaignLaunch } from "@/components/campaigns/CampaignLaunch";
 import { CHANNEL_LABEL, campaignState } from "@/components/campaigns/labels";
 import { Messages } from "@/components/campaigns/Messages";
+import { Reports } from "@/components/campaigns/Reports";
 import { StepsEditor } from "@/components/campaigns/StepsEditor";
 import { ImportPanel } from "@/components/leads/ImportPanel";
 import { LeadsTable } from "@/components/leads/LeadsTable";
 import { api, errorMessage, type Campaign } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace";
 
-type Tab = "sequence" | "leads" | "messages" | "settings";
+type Tab = "sequence" | "leads" | "messages" | "reports" | "settings";
 
 function sentence(c: Campaign): string {
   const n = c.counts;
@@ -89,6 +90,7 @@ export default function CampaignPage() {
             ["leads", "Buyers"],
             ["messages", "Messages"],
             ["sequence", "Sequence"],
+            ["reports", "Reports"],
             ["settings", "Settings"],
           ] as [Tab, string][]
         ).map(([key, label]) => (
@@ -112,6 +114,7 @@ export default function CampaignPage() {
       )}
       {tab === "messages" && <Messages campaign={campaign} refreshKey={refresh} />}
       {tab === "sequence" && <StepsEditor campaign={campaign} />}
+      {tab === "reports" && <Reports campaignId={campaign.id} recipients={campaign.report_emails} />}
       {tab === "settings" && (
         <div style={{ maxWidth: 640 }}>
           <CampaignForm

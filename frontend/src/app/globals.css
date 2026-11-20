@@ -362,6 +362,11 @@ label.btn.is-busy { opacity: 0.55; pointer-events: none; }
   .desk-thread { padding: 24px 16px 48px; }
 }
 
+.apollo-form { flex-basis: 100%; margin-top: 12px; }
+.report { padding: 20px 0; border-top: 1px solid var(--rule); display: grid; gap: 10px; }
+.report header { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.report-summary { max-width: 68ch; line-height: 1.6; }
+
 /* ---------- toast ---------- */
 .toast {
   position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);

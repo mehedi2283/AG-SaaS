@@ -227,6 +227,7 @@ export type LeadImport = {
   id: string;
   campaign_id: string;
   original_filename: string;
+  source: "csv" | "apollo";
   status: "uploaded" | "processing" | "completed" | "completed_with_errors" | "failed";
   total_rows: number;
   imported_rows: number;
