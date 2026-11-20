@@ -14,13 +14,19 @@ QUEUE_IMPORTS = "gazi:imports"
 
 
 class JobQueue(Protocol):
-    async def enqueue(self, function: str, tenant_id: UUID, *args: str, job_id: str, queue: str) -> None: ...
+    async def enqueue(
+        self, function: str, tenant_id: UUID, *args: str, job_id: str, queue: str, defer_seconds: int | None = None
+    ) -> None: ...
 
 
 class ArqQueue:
     def __init__(self, redis: ArqRedis) -> None:
         self._redis = redis
 
-    async def enqueue(self, function: str, tenant_id: UUID, *args: str, job_id: str, queue: str) -> None:
+    async def enqueue(
+        self, function: str, tenant_id: UUID, *args: str, job_id: str, queue: str, defer_seconds: int | None = None
+    ) -> None:
         # A deterministic job_id makes enqueueing idempotent: ARQ ignores a second job with the same id.
-        await self._redis.enqueue_job(function, str(tenant_id), *args, _job_id=job_id, _queue_name=queue)
+        await self._redis.enqueue_job(
+            function, str(tenant_id), *args, _job_id=job_id, _queue_name=queue, _defer_by=defer_seconds
+        )

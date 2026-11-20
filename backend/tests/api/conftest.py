@@ -39,10 +39,21 @@ class FakeQueue:
     jobs: list[dict[str, Any]] = field(default_factory=list)
     fail: bool = False
 
-    async def enqueue(self, function: str, tenant_id: UUID, *args: str, job_id: str, queue: str) -> None:
+    async def enqueue(
+        self, function: str, tenant_id: UUID, *args: str, job_id: str, queue: str, defer_seconds: int | None = None
+    ) -> None:
         if self.fail:
             raise ConnectionError("redis down")
-        self.jobs.append({"function": function, "tenant_id": tenant_id, "args": args, "job_id": job_id, "queue": queue})
+        self.jobs.append(
+            {
+                "function": function,
+                "tenant_id": tenant_id,
+                "args": args,
+                "job_id": job_id,
+                "queue": queue,
+                "defer": defer_seconds,
+            }
+        )
 
 
 @dataclass

@@ -36,6 +36,8 @@ def instantly(calls: list[tuple[str, str, Any]], fail: dict[str, httpx.Response]
             return httpx.Response(200, json={"id": "inst-campaign-1", "name": body["name"]})
         if path == "/api/v2/leads":
             return httpx.Response(200, json={"id": f"inst-lead-{len(calls)}"})
+        if path == "/api/v2/emails/reply":
+            return httpx.Response(200, json={"id": "sent-reply-1"})
         if path.endswith("/activate"):
             return httpx.Response(200, json={"status": 1})
         return httpx.Response(404, json={"message": "unexpected call"})
