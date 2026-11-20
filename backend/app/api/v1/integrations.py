@@ -13,6 +13,18 @@ from app.domain.integrations.schemas import IntegrationOut, Provider
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
+# Shown on the API docs page instead of a generic placeholder. Each provider's body is validated in the service.
+_EXAMPLES: dict[str, Any] = {
+    "api_key": {
+        "summary": "Instantly, HeyReach or Apollo",
+        "value": {"api_key": "paste-your-api-key"},
+    },
+    "calendly": {
+        "summary": "Calendly",
+        "value": {"booking_url": "https://calendly.com/your-name/intro", "api_token": "paste-your-token"},
+    },
+}
+
 
 @router.get("")
 async def list_integrations(
@@ -24,7 +36,7 @@ async def list_integrations(
 @router.put("/{provider}")
 async def save_integration(
     provider: Provider,
-    body: dict[str, Any] = Body(...),
+    body: dict[str, Any] = Body(..., openapi_examples=_EXAMPLES),
     ctx: TenantContext = Depends(require_role("admin")),
     conn: asyncpg.Connection = Depends(tenant_db),
     crypto: Crypto = Depends(get_crypto),
