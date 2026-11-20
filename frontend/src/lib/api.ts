@@ -298,3 +298,40 @@ export type Message = {
 };
 
 export type MessagePage = { items: Message[]; total: number };
+
+// ---- Replies (backend/app/domain/replies/schemas.py) ----
+
+export type Intent =
+  | "interested"
+  | "not_interested"
+  | "question"
+  | "referral"
+  | "out_of_office"
+  | "unsubscribe"
+  | "bounce"
+  | "other";
+
+export type Reply = {
+  id: string;
+  channel: Channel;
+  status: "received" | "classified" | "drafted" | "awaiting_approval" | "sent" | "failed" | "ignored";
+  intent: Intent | null;
+  confidence: number | null;
+  rationale: string | null;
+  inbound_body: string | null;
+  draft_body: string | null;
+  final_body: string | null;
+  error_code: string | null;
+  received_at: string;
+  sent_at: string | null;
+  lead_id: string | null;
+  lead_name: string | null;
+  lead_email: string | null;
+  lead_company: string | null;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  our_message: string | null;
+  will_add_link: boolean;
+};
+
+export type ReplyPage = { items: Reply[]; total: number; waiting: number };

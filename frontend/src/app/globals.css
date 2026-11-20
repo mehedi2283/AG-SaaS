@@ -323,6 +323,45 @@ label.btn.is-busy { opacity: 0.55; pointer-events: none; }
 .message-edit { display: grid; gap: 8px; }
 .letter-input { font-family: var(--serif); font-size: 1rem; }
 
+/* ---------- replies desk ---------- */
+.desk { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; min-height: 100vh; }
+.desk-list { border-right: 1px solid var(--rule); display: flex; flex-direction: column; min-width: 0; }
+.desk-head { padding: 32px 20px 0; }
+.desk-head .title { margin-bottom: 18px; }
+.tabs-compact { gap: 16px; margin-bottom: 0; }
+.desk-empty { padding: 32px 20px; }
+.desk-empty .letter { font-size: var(--t-17); }
+.desk-empty .muted { margin-top: 8px; }
+.reply-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
+.reply-item {
+  display: grid; gap: 4px; width: 100%; padding: 14px 20px; text-align: left; cursor: pointer;
+  border: 0; border-bottom: 1px solid var(--rule); background: none;
+}
+.reply-item:hover { background: var(--rail); }
+.reply-item[aria-current="true"] { background: var(--violet-wash); }
+.reply-item-top { display: flex; justify-content: space-between; gap: 8px; }
+.reply-snippet {
+  color: var(--ink-2); font-size: var(--t-13); overflow: hidden; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.intent { font-size: var(--t-13); font-weight: 500; color: var(--ink-2); }
+.intent-interested { color: var(--interested); }
+.intent-question { color: var(--question); }
+.intent-out_of_office { color: var(--ooo); }
+.intent-unsubscribe, .intent-bounce { color: var(--danger); }
+.desk-thread { padding: 32px var(--gutter) 64px; min-width: 0; }
+.thread-view { display: grid; gap: 24px; max-width: 72ch; }
+.thread-view-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.ours .letter-muted { color: var(--ink-2); margin-top: 10px; white-space: pre-wrap; }
+.theirs, .draft { display: grid; gap: 8px; }
+.theirs .letter, .draft > .letter { white-space: pre-wrap; }
+.draft-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+@media (max-width: 860px) {
+  .desk { grid-template-columns: 1fr; min-height: 0; }
+  .desk-list { border-right: 0; border-bottom: 1px solid var(--rule); max-height: 45vh; }
+  .desk-thread { padding: 24px 16px 48px; }
+}
+
 /* ---------- toast ---------- */
 .toast {
   position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
