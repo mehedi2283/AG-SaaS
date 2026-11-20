@@ -4,26 +4,41 @@ Read this first in a new session, after `CLAUDE.md`. It holds what the first bui
 in the code: where things stand, what was found in the old n8n setup, open questions and the owner's
 preferences. Update it at the end of each session.
 
-Last updated: 2026-11-20 (billing session).
+Last updated: 2026-11-20 (full v1 build session).
 
 ## Where things stand
 
-| Area | State | Branch |
-|---|---|---|
-| Schema, RLS, tests (Postgres) | Done. | `main` |
-| Backend core (auth, crypto, errors, tenant DB context, workspaces, integrations, webhook endpoints + intake) | Done. 251 tests total, ruff + strict mypy clean. | `main` |
-| Local dev (Supabase CLI, Docker, `infra/dev-setup.ps1`) | Done. Verified on the owner's Windows PC. | `main` |
-| Frontend: sign-in, workspace setup and switcher, Settings (accounts, webhook addresses) | Done. Verified in a browser against the local stack. | `main` |
-| Billing (Stripe): plan screen, 14-day trial checkout, portal, webhooks, grace/paused banner | Done. Verified end to end against the Stripe sandbox (API + webhooks); screens not yet checked in a browser. `ensure_access` is ready but not wired: launches and AI don't exist yet. | `main` |
-| AI allowance + token packs (2M included; +2M $49, +5M $99, +12M $199 monthly), workspace AI settings (auto-reply on/off, model choice) | Done. Pack purchase verified end to end against the Stripe sandbox; screens not yet checked in a browser. `ensure_token_budget` is ready for the LLM client. | local commit |
-| Superuser dashboard (`/admin`): all workspaces, people, activity; suspend/reactivate, disable/enable login, roles/remove members, free access (also moves a Stripe trial) | Done. 278 tests. Login disable verified against local Supabase Auth; page not yet checked in a browser. The owner's local account is the only superuser. | local commit |
-| Frontend: Replies, Campaigns, Leads | Empty states only; each waits for its backend. | |
-| Reply pipeline (worker, classify, draft, guards, send) | **Next.** | |
-| Leads (CSV import + duplicates, Apollo search + scoring), sequence generation, launching Instantly/HeyReach campaigns | Not started. | |
-| Calendly bookings, weekly reports, error alerts | Not started. | |
-| Production deployment (compose, Nginx, Certbot, self-hosted Supabase) | Not started. | |
+Every v1 area is built, with 341 backend tests (RLS, API, jobs with recorded provider responses), ruff + strict
+mypy clean, and the frontend type-checked and linted. Commits after `06e5c3b` are **local only** (the owner must
+approve pushing to `main`).
 
-All work is on `main` (pushed 2026-11-20 at the owner's request; `claude/frontend` matches it).
+| Area | State | How it was verified |
+|---|---|---|
+| Schema, RLS, tenancy, auth, crypto, local dev | Done | Tests; local stack |
+| Billing: $99 plan, 14-day trial, portal, grace/pause, token packs, AI allowance | Done | Stripe sandbox end to end |
+| Workspace AI settings (auto-reply switch, model choice) | Done | Tests |
+| Superuser dashboard (`/admin`) | Done | Tests; GoTrue ban against local Supabase |
+| Workers: `@tenant_job`, per-tenant rate limits + concurrency, 4 queues, reconciler, CSV purge, alerts | Done | Tests; running in local Docker |
+| Campaigns, senders (encrypted signature), sequence steps | Done | Tests; live API |
+| Lead import (CSV, Apollo headers, duplicates review) | Done | Tests; 3,000-row live import |
+| Apollo search + buyer scoring | Done | Recorded Apollo responses only |
+| LLM client, prompts, guards, sequence generation | Done | Tests; **live OpenAI** 3-step sequence |
+| Launch to Instantly / HeyReach, pause/resume | Done | Recorded responses only: **not yet tried with a real Instantly/HeyReach account** |
+| Reply pipeline (classify, draft, auto-send after 15 min or approval, links by code) + Replies desk | Done | Tests with recorded OpenAI/Instantly |
+| Calendly bookings (utm_campaign) | Done | Tests |
+| Weekly reports (Saturdays) | Done | Tests; needs a SendGrid key to email |
+| Production deployment (compose, Nginx, Certbot, runbook) | Written | Compose validated; frontend image builds and serves; **not yet run on a server** |
+| Screens | Built | Each page compiles on the dev server; **not yet clicked through in a browser** |
+
+## Before going live
+
+1. Try one real Instantly campaign and one HeyReach campaign end to end; adjust `app/providers/instantly.py` /
+   `heyreach.py` if their API shapes differ (they follow the public docs and the n8n workflow field names).
+2. Send a real reply to a test campaign and check the webhook payload fields (`app/domain/replies/parse.py`).
+3. Set `GAZI_SENDGRID_API_KEY` + `GAZI_EMAIL_FROM` (reports and alerts are stored but not emailed without it).
+4. Add 2FA for superusers (Supabase MFA, `aal2`).
+5. Create the live Stripe product, price and packs; follow `docs/runbooks/production.md`.
+6. Roll the Stripe sandbox secret key (it appeared in a CLI error output during testing).
 
 ## What the old n8n setup does (reviewed 2026-11-20, read-only)
 
@@ -85,12 +100,14 @@ the workflow code and must be checked against a real event before the reply pipe
 - They want Claude to do the work end to end and push to GitHub (`mehedi2283/AG-SaaS`).
 - Windows PC with Docker Desktop and Node; the repo is at `C:\Users\Babu\Documents\AG-SaaS`.
 
-## Next: reply pipeline
+## Notes for the next session
 
-1. ARQ worker settings and `@tenant_job` (sets `app.tenant_id`, binds logs, checks tenant status,
-   per-tenant semaphore and rate limit).
-2. `handle_webhook_event`: parse Instantly/HeyReach events, match the lead, insert `replies` (dedupe).
-3. LLM client (platform OpenAI key, token cap check, `usage_logs`), Pydantic outputs, guards.
-4. Classify intent, draft the reply, add links by code (interested/question only), policy → send or hold.
-5. `send_reply` via Instantly / HeyReach clients; reconciler cron.
-6. API + Replies screen (inbox, draft editing, approve/dismiss), per the prototype.
+- Workers: `arq --watch` reloads code but not the job list. After adding a job to `app/workers/jobs.py`, restart
+  the worker containers.
+- Never run `npm run build` in `frontend/` while the owner's dev server is up (it breaks it); use
+  `npx tsc --noEmit` + `npm run lint`, or build the Docker image.
+- RLS/API tests run against the local Supabase Postgres as `supabase_admin` (the `postgres` role can't SET ROLE):
+  `GAZI_TEST_DSN=postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres uv run pytest`.
+- Inside SECURITY DEFINER functions `app.tenant_id()` reads JWT claims (current_user is gazi_definer); functions
+  called by workers read `current_setting('app.tenant_id')` instead.
+- Campaigns are one channel each (email or LinkedIn); the owner didn't ask for mixed campaigns.
