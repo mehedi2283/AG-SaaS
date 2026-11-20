@@ -168,3 +168,103 @@ export type AdminActivity = {
   target_user_email: string | null;
   diff: Record<string, unknown>;
 };
+
+// ---- Campaigns, senders, leads (backend/app/domain/{campaigns,senders,leads}/schemas.py) ----
+
+export type Channel = "email" | "linkedin";
+export type Day = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+export type Campaign = {
+  id: string;
+  name: string;
+  channel: Channel;
+  status: string;
+  launch_status: "not_launched" | "launching" | "launched" | "failed";
+  launch_error: string | null;
+  launched_at: string | null;
+  offer_summary: string | null;
+  offer_details: string | null;
+  attachment_url: string | null;
+  report_emails: string[];
+  timezone: string;
+  sending_days: Day[];
+  send_from: string; // "09:00:00"
+  send_to: string;
+  daily_limit: number;
+  sender_identity_id: string | null;
+  sequence_count: number;
+  counts: { leads: number; ready: number; pushed: number; replied: number; pending_duplicates: number; bookings: number };
+  created_at: string;
+  updated_at: string;
+};
+
+export type Step = { step: number; delay_days: number; angle: string };
+
+export type Sender = {
+  id: string;
+  display_name: string;
+  title: string | null;
+  company: string | null;
+  has_signature: boolean;
+  signature_image_url: string | null;
+  instantly_eaccount: string | null;
+  heyreach_account_id: string | null;
+  is_default: boolean;
+  updated_at: string;
+};
+
+export type LeadImport = {
+  id: string;
+  campaign_id: string;
+  original_filename: string;
+  status: "uploaded" | "processing" | "completed" | "completed_with_errors" | "failed";
+  total_rows: number;
+  imported_rows: number;
+  failed_rows: number;
+  duplicate_rows: number;
+  pending_duplicates: number;
+  errors: { row: number; error: string }[];
+  error_code: string | null;
+  file_kept_until: string | null;
+  created_at: string;
+  finished_at: string | null;
+};
+
+export type Duplicate = {
+  id: string;
+  incoming_email: string;
+  incoming: Record<string, unknown>;
+  reason: "exists_in_tenant" | "repeated_in_file";
+  resolution: "pending" | "skip" | "update_existing" | "add_anyway";
+  existing_lead_id: string | null;
+  existing_campaign: string | null;
+  existing_name: string | null;
+  resolved_at: string | null;
+};
+
+export type Lead = {
+  id: string;
+  campaign_id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  title: string | null;
+  company: string | null;
+  linkedin_url: string | null;
+  website: string | null;
+  industry: string | null;
+  city: string | null;
+  country: string | null;
+  company_size: number | null;
+  status: string;
+  source: string;
+  buyer_score: number | null;
+  created_at: string;
+};
+
+export type LeadPage = { items: Lead[]; total: number };
+
+/** Upload a file as the raw request body (the API streams it to disk). */
+export async function uploadFile<T>(path: string, file: File): Promise<T> {
+  return api<T>(path, { method: "POST", body: file, headers: { "content-type": file.type || "text/csv" } });
+}

@@ -3,6 +3,7 @@
 import { AiSettings } from "@/components/settings/AiSettings";
 import { BillingSection } from "@/components/settings/BillingSection";
 import { ConnectedAccounts } from "@/components/settings/ConnectedAccounts";
+import { Senders } from "@/components/settings/Senders";
 import { WebhookAddresses } from "@/components/settings/WebhookAddresses";
 import { useWorkspace } from "@/lib/workspace";
 
@@ -24,6 +25,7 @@ export default function SettingsPage() {
       {isAdmin ? (
         <>
           <ConnectedAccounts />
+          <Senders />
           <WebhookAddresses />
         </>
       ) : (
