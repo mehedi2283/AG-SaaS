@@ -127,9 +127,7 @@ def test_cross_tenant_delete_affects_nothing(conn: psycopg.Connection, seed: See
 def test_tenant_id_cannot_be_supplied_and_defaults_to_jwt(conn: psycopg.Connection, seed: Seed) -> None:
     with as_user(conn, seed.a.users["member"], seed.a.id) as c:
         with pytest.raises(errors.InsufficientPrivilege):
-            c.execute(
-                "insert into public.campaigns (tenant_id, name, channel) values (%s, 'x', 'email')", [seed.b.id]
-            )
+            c.execute("insert into public.campaigns (tenant_id, name, channel) values (%s, 'x', 'email')", [seed.b.id])
     with as_user(conn, seed.a.users["member"], seed.a.id) as c:
         tid = scalar(c, "insert into public.campaigns (name, channel) values ('New', 'email') returning tenant_id")
     assert tid == seed.a.id
@@ -141,9 +139,7 @@ def test_forged_tenant_claim_cannot_insert(conn: psycopg.Connection, seed: Seed)
             c.execute("insert into public.campaigns (name, channel) values ('x', 'email')")
 
 
-@pytest.mark.parametrize(
-    ("role", "allowed"), [("viewer", False), ("member", True), ("admin", True), ("owner", True)]
-)
+@pytest.mark.parametrize(("role", "allowed"), [("viewer", False), ("member", True), ("admin", True), ("owner", True)])
 def test_campaign_insert_needs_member(conn: psycopg.Connection, seed: Seed, role: str, allowed: bool) -> None:
     with as_user(conn, seed.a.users[role], seed.a.id) as c:
         if allowed:
@@ -228,7 +224,9 @@ def test_worker_is_scoped_to_job_tenant(conn: psycopg.Connection, seed: Seed) ->
     with as_worker(conn, seed.a.id) as c:
         assert {r[0] for r in c.execute("select tenant_id from public.leads")} == {seed.a.id}
         assert {r[0] for r in c.execute("select id from public.tenants")} == {seed.a.id}
-        assert c.execute("update public.replies set status = 'classified' where tenant_id = %s", [seed.b.id]).rowcount == 0
+        assert (
+            c.execute("update public.replies set status = 'classified' where tenant_id = %s", [seed.b.id]).rowcount == 0
+        )
         tid = scalar(
             c,
             "insert into public.usage_logs (kind, provider, model, prompt_tokens) values ('llm','openai','gpt-4o',1)"
@@ -275,9 +273,13 @@ def test_webhook_token_resolves_to_its_tenant(conn: psycopg.Connection, seed: Se
 def test_revoked_webhook_token_resolves_to_nothing(conn: psycopg.Connection, seed: Seed) -> None:
     conn.execute("begin")
     try:
-        conn.execute("update public.webhook_endpoints set revoked_at = now() where id = %s", [seed.a.rows["webhook_endpoints"]])
+        conn.execute(
+            "update public.webhook_endpoints set revoked_at = now() where id = %s", [seed.a.rows["webhook_endpoints"]]
+        )
         conn.execute("set local role gazi_worker")
-        rows = conn.execute("select * from app.resolve_webhook_token(%s)", [token_hash(seed.a.webhook_token)]).fetchall()
+        rows = conn.execute(
+            "select * from app.resolve_webhook_token(%s)", [token_hash(seed.a.webhook_token)]
+        ).fetchall()
         assert rows == []
     finally:
         conn.execute("rollback")

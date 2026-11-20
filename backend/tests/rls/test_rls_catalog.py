@@ -36,9 +36,7 @@ def test_every_table_has_policies(conn: psycopg.Connection, seed: Seed) -> None:
     assert missing == [], f"tables without any policy: {missing}"
 
 
-def test_every_tenant_table_has_not_null_tenant_id_defaulting_to_context(
-    conn: psycopg.Connection, seed: Seed
-) -> None:
+def test_every_tenant_table_has_not_null_tenant_id_defaulting_to_context(conn: psycopg.Connection, seed: Seed) -> None:
     for table in _public_tables(conn):
         if table in NO_TENANT_ID:
             continue
@@ -98,5 +96,5 @@ def test_security_definer_functions_are_locked_down(conn: psycopg.Connection, se
     assert rows, "expected SECURITY DEFINER functions"
     for name, owner, config, anon_exec in rows:
         assert owner == "gazi_definer", f"{name} is owned by {owner}"
-        assert config and "search_path=\"\"" in config, f"{name} must pin search_path=''"
+        assert config and 'search_path=""' in config, f"{name} must pin search_path=''"
         assert not anon_exec, f"anon can execute {name}"

@@ -53,8 +53,7 @@ def dsn() -> Iterator[str]:
     admin_dsn = os.environ.get("GAZI_TEST_DSN")
     if not admin_dsn:
         pytest.fail(
-            "GAZI_TEST_DSN is not set. The RLS suite must run against a real Postgres; "
-            "it is never skipped silently.",
+            "GAZI_TEST_DSN is not set. The RLS suite must run against a real Postgres; it is never skipped silently.",
             pytrace=False,
         )
     db_name = f"gazi_rls_{uuid.uuid4().hex[:12]}"
@@ -260,8 +259,14 @@ def _seed_tenant(conn: psycopg.Connection, slug: str) -> TenantSeed:
     t.rows["bookings"] = ins(
         "insert into public.bookings (tenant_id, campaign_id, lead_id, webhook_event_id, external_id, invitee_email)"
         " values (%s, %s, %s, %s, %s, %s) returning id",
-        [tid, t.rows["campaigns"], t.rows["leads"], t.rows["webhook_events"], f"inv-{slug}",
-         f"lee@{slug}-prospect.com"],
+        [
+            tid,
+            t.rows["campaigns"],
+            t.rows["leads"],
+            t.rows["webhook_events"],
+            f"inv-{slug}",
+            f"lee@{slug}-prospect.com",
+        ],
     )
     t.rows["campaign_reports"] = ins(
         "insert into public.campaign_reports (tenant_id, campaign_id, period_start, period_end)"

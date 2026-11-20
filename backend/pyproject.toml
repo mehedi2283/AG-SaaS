@@ -2,14 +2,48 @@
 name = "gazi-backend"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "pydantic>=2.9",
+  "pydantic-settings>=2.6",
+  "asyncpg>=0.30",
+  "httpx>=0.27",
+  "structlog>=24.4",
+  "pyjwt>=2.9",
+  "cryptography>=43",
+  "arq>=0.26",
+]
 
 [dependency-groups]
 dev = [
   "pytest>=8.3",
+  "anyio>=4.6",
   "psycopg[binary]>=3.2",
+  "ruff>=0.7",
+  "mypy>=1.13",
+  "asyncpg-stubs>=0.30",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "ASYNC", "RUF"]
+ignore = ["S101", "S608"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106", "S311"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Body", "fastapi.Header", "app.core.auth.require_role"]
