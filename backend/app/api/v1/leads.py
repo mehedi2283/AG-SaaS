@@ -9,6 +9,7 @@ from app.api.deps import get_queue, tenant_db
 from app.core.auth import TenantContext, current_tenant, require_role
 from app.core.config import Settings, app_settings
 from app.domain.leads import service
+from app.domain.leads.apollo import ApolloSearchIn
 from app.domain.leads.schemas import (
     DuplicateOut,
     ImportOut,
@@ -106,3 +107,16 @@ async def delete_lead(
 ) -> Response:
     await service.delete_lead(conn, ctx, lead_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/campaigns/{campaign_id}/apollo-search", status_code=status.HTTP_202_ACCEPTED)
+async def apollo_search(
+    campaign_id: UUID,
+    body: ApolloSearchIn,
+    ctx: TenantContext = Depends(require_role("member")),
+    conn: asyncpg.Connection = Depends(tenant_db),
+    settings: Settings = Depends(app_settings),
+    queue: JobQueue = Depends(get_queue),
+) -> ImportOut:
+    """Find buyers in Apollo, reveal their work emails (uses Apollo credits) and score each one (in the background)."""
+    return await service.start_apollo_search(conn, ctx, settings, queue, campaign_id, body)

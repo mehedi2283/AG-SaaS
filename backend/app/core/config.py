@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     # OpenAI: ONE platform key (rule 2), from GAZI_OPENAI_API_KEY or the Docker secret gazi_openai_api_key.
     openai_api_key: SecretStr | None = None
 
+    # SendGrid (one platform account) for weekly reports and alerts. Without a key, reports are still written and
+    # stored, and marked as not emailed.
+    sendgrid_api_key: SecretStr | None = None
+    email_from: str = "reports@gazi.app"
+
     # AI allowance per workspace and calendar month (UTC), before packs. Applies with or without billing.
     included_tokens: int = 2_000_000
     # Models a workspace may choose from (comma-separated), and the defaults for new workspaces.

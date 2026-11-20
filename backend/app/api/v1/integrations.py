@@ -3,13 +3,15 @@ from __future__ import annotations
 from typing import Any
 
 import asyncpg
+import structlog
 from fastapi import APIRouter, Body, Depends, Response, status
 
-from app.api.deps import get_crypto, tenant_db
+from app.api.deps import get_crypto, get_queue, tenant_db
 from app.core.auth import TenantContext, require_role
 from app.core.crypto import Crypto
 from app.domain.integrations import service
 from app.domain.integrations.schemas import IntegrationOut, Provider
+from app.queue import QUEUE_SYNC, JobQueue
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -40,9 +42,22 @@ async def save_integration(
     ctx: TenantContext = Depends(require_role("admin")),
     conn: asyncpg.Connection = Depends(tenant_db),
     crypto: Crypto = Depends(get_crypto),
+    queue: JobQueue = Depends(get_queue),
 ) -> IntegrationOut:
     config = service.parse_config(provider, body)
-    return await service.save_integration(conn, ctx, crypto, provider, config)
+    saved = await service.save_integration(conn, ctx, crypto, provider, config)
+    try:  # the key check runs in a worker (rate-limited); the key is saved either way
+        stamp = await conn.fetchval("select extract(epoch from now())::bigint")
+        await queue.enqueue(
+            "check_integration",
+            ctx.tenant_id,
+            provider,
+            job_id=f"check:{ctx.tenant_id}:{provider}:{stamp}",
+            queue=QUEUE_SYNC,
+        )
+    except Exception as exc:
+        structlog.get_logger().warning("integration.check_not_queued", provider=provider, error_type=type(exc).__name__)
+    return saved
 
 
 @router.delete("/{provider}", status_code=status.HTTP_204_NO_CONTENT)

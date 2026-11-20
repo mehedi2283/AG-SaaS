@@ -22,6 +22,7 @@ log = structlog.get_logger()
 REQUEUE: dict[str, tuple[str, str, str]] = {
     "webhook_event": ("handle_webhook_event", QUEUE_REPLIES, "webhook"),
     "lead_import": ("import_leads", QUEUE_IMPORTS, "import"),
+    "apollo_search": ("apollo_search", QUEUE_IMPORTS, "apollo"),
     "lead_generation": ("generate_lead_sequence", QUEUE_LLM, "gen-lead"),
 }
 

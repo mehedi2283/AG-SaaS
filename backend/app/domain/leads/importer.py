@@ -113,7 +113,7 @@ async def import_leads(ctx: dict[str, Any], tenant_id: UUID, import_id: str) -> 
         raise
 
     async with as_worker(pool, tenant_id) as conn:
-        result = await _write(conn, imp["campaign_id"], iid, parsed)
+        result, _ = await _write(conn, imp["campaign_id"], iid, parsed)
     log.info("leads.imported", **result)
     return result
 
@@ -127,7 +127,9 @@ async def _fail(conn: asyncpg.Connection, import_id: UUID, error_code: str) -> N
     )
 
 
-async def _write(conn: asyncpg.Connection, campaign_id: UUID, import_id: UUID, parsed: Parsed) -> dict[str, Any]:
+async def _write(
+    conn: asyncpg.Connection, campaign_id: UUID, import_id: UUID, parsed: Parsed, source: str = "csv"
+) -> tuple[dict[str, Any], dict[str, UUID]]:
     # Anyone already anywhere in the workspace is a duplicate for review, not a new lead.
     emails = [lead["email"] for lead in parsed.leads]
     existing: dict[str, UUID] = {
@@ -152,14 +154,15 @@ async def _write(conn: asyncpg.Connection, campaign_id: UUID, import_id: UUID, p
             f"""
             insert into public.leads
               (campaign_id, source_import_id, source, email, company_size, raw, {", ".join(_TEXT_COLS)})
-            select $1, $2, 'csv', * from unnest(
-              $3::text[], $4::int[], $5::jsonb[], {", ".join(f"${i + 6}::text[]" for i in range(len(_TEXT_COLS)))}
+            select $1, $2, $3, * from unnest(
+              $4::text[], $5::int[], $6::jsonb[], {", ".join(f"${i + 7}::text[]" for i in range(len(_TEXT_COLS)))}
             )
             on conflict (tenant_id, campaign_id, email) do nothing
             returning id, email
             """,
             campaign_id,
             import_id,
+            source,
             [lead["email"] for lead in chunk],
             [lead.get("company_size") for lead in chunk],
             [lead["raw"] for lead in chunk],
@@ -201,10 +204,11 @@ async def _write(conn: asyncpg.Connection, campaign_id: UUID, import_id: UUID, p
         parsed.header_map,
         parsed.errors,
     )
-    return {
+    summary = {
         "status": status,
         "total": parsed.total,
         "imported": len(created),
         "duplicates": len(dup_rows),
         "failed": parsed.failed,
     }
+    return summary, created

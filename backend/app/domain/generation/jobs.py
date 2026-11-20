@@ -3,6 +3,7 @@ violation, store prompt_template_id + prompt_version on every message."""
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
 
@@ -24,7 +25,7 @@ MAX_ATTEMPTS = 3
 _DONE = ("ok", "approved", "pushed")
 
 
-def lead_context(lead: asyncpg.Record) -> dict[str, Any]:
+def lead_context(lead: Mapping[str, Any] | asyncpg.Record) -> dict[str, Any]:
     name = " ".join(p for p in (lead["first_name"], lead["last_name"]) if p)
     location = ", ".join(p for p in (lead["city"], lead["country"]) if p)
     return {

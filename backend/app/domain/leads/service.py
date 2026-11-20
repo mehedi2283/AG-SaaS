@@ -19,6 +19,8 @@ from app.core.auth import TenantContext
 from app.core.config import Settings
 from app.core.errors import Conflict, NotFound, PayloadTooLarge, Unprocessable
 from app.domain.audit.repo import record
+from app.domain.billing.service import ensure_access, ensure_token_budget
+from app.domain.leads.apollo import ApolloSearchIn
 from app.domain.leads.normalize import LEAD_COLUMNS, map_headers
 from app.domain.leads.schemas import (
     DuplicateOut,
@@ -34,7 +36,7 @@ from app.queue import QUEUE_IMPORTS, JobQueue
 log = structlog.get_logger()
 
 _IMPORT_COLS = """
-  i.id, i.campaign_id, i.original_filename, i.status, i.total_rows, i.imported_rows, i.failed_rows,
+  i.id, i.campaign_id, i.original_filename, i.source, i.status, i.total_rows, i.imported_rows, i.failed_rows,
   i.duplicate_rows, i.errors, i.error_code, i.created_at, i.finished_at,
   case when i.file_path is not null then i.expires_at end as file_kept_until,
   (select count(*) from public.lead_duplicates d where d.import_id = i.id and d.resolution = 'pending')::int
@@ -296,3 +298,44 @@ async def delete_lead(conn: asyncpg.Connection, ctx: TenantContext, lead_id: UUI
     if row is None:
         raise NotFound("There's no such lead, or you need the admin role to delete it.", code="lead_not_found")
     await record(conn, ctx, "lead.deleted", target_table="leads", target_id=lead_id)
+
+
+async def start_apollo_search(
+    conn: asyncpg.Connection,
+    ctx: TenantContext,
+    settings: Settings,
+    queue: JobQueue,
+    campaign_id: UUID,
+    body: ApolloSearchIn,
+) -> ImportOut:
+    campaign = await conn.fetchrow("select status from public.campaigns where id = $1", campaign_id)
+    if campaign is None:
+        raise NotFound("There's no such campaign.", code="campaign_not_found")
+    if not body.filters():
+        raise Unprocessable("Give at least a job title, a location or a keyword.", code="search_too_broad")
+    if not await conn.fetchval("select exists(select 1 from public.integrations where provider = 'apollo')"):
+        raise Unprocessable("Connect Apollo in Settings first.", code="apollo_not_connected")
+    await ensure_access(conn, settings)
+    await ensure_token_budget(conn, settings, worker=False)
+    import_id: UUID = await conn.fetchval(
+        """
+        insert into public.lead_imports (campaign_id, original_filename, source, header_map, created_by)
+        values ($1, $2, 'apollo', $3, $4) returning id
+        """,
+        campaign_id,
+        body.label()[:200],
+        body.model_dump(),
+        ctx.principal.user_id,
+    )
+    await queue.enqueue(
+        "apollo_search", ctx.tenant_id, str(import_id), job_id=f"apollo:{import_id}", queue=QUEUE_IMPORTS
+    )
+    await record(
+        conn,
+        ctx,
+        "leads.apollo_search",
+        target_table="lead_imports",
+        target_id=import_id,
+        diff={"max_people": body.max_people},
+    )
+    return await get_import(conn, import_id)

@@ -52,6 +52,12 @@ def tenant_job(fn: Job) -> Job:
             raise  # rate limited or a retryable provider error: ARQ runs it again later
         except JobFailed as exc:
             log.warning("job.failed", error_code=exc.error_code)
+            from app.domain.alerts import alert_admins  # late import: alerts uses the worker's providers
+
+            try:
+                await alert_admins(ctx, tid, exc.error_code)
+            except Exception as alert_exc:  # an alert must never turn a recorded failure into a crash
+                log.error("alert.crashed", error_type=type(alert_exc).__name__, error_code="alert_failed")
             return {"failed": exc.error_code}
         except Exception as exc:
             log.exception("job.crashed", error_type=type(exc).__name__, error_code="job_crashed")

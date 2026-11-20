@@ -20,6 +20,7 @@ from app.api.v1 import (
     integrations,
     leads,
     replies,
+    reports,
     senders,
     session,
     webhook_endpoints,
@@ -128,6 +129,7 @@ def create_app(
         leads.router,
         generation.router,
         replies.router,
+        reports.router,
     ):
         app.include_router(router, prefix="/v1")
     app.include_router(webhooks_router)

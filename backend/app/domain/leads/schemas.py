@@ -14,6 +14,7 @@ class ImportOut(BaseModel):
     id: UUID
     campaign_id: UUID
     original_filename: str
+    source: str  # "csv" or "apollo"
     status: str
     total_rows: int
     imported_rows: int

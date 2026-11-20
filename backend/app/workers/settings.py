@@ -17,6 +17,7 @@ from app.core.config import get_settings
 from app.core.crypto import Crypto
 from app.core.logging import configure_logging
 from app.db.pool import create_pool
+from app.domain.reports.jobs import weekly_reports
 from app.llm.client import LlmClient
 from app.queue import QUEUE_IMPORTS, QUEUE_LLM, QUEUE_REPLIES, QUEUE_SYNC, ArqQueue
 from app.workers import jobs
@@ -76,6 +77,7 @@ SyncWorker = _worker(
     cron_jobs=[
         cron(reconcile_stuck, minute=set(range(0, 60, 5)), run_at_startup=True),
         cron(purge_imports, minute=17),
+        cron(weekly_reports, weekday="sat", hour=9, minute=0),
     ],
 )
 
