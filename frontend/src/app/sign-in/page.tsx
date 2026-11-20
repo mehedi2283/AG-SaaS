@@ -14,6 +14,22 @@ export default function SignInPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function forgot() {
+    setError(null);
+    if (!email.trim()) {
+      setError("Type your email first, then choose Forgot password.");
+      return;
+    }
+    setBusy(true);
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/account`,
+    });
+    setBusy(false);
+    if (resetError) setError(resetError.message);
+    else setNotice("Check your inbox for a link. It signs you in so you can set a new password.");
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -94,11 +110,23 @@ export default function SignInPage() {
               {error}
             </p>
           )}
+          {notice && (
+            <p className="notice notice-plain" role="status">
+              {notice}
+            </p>
+          )}
           <button className="btn btn-primary btn-block" type="submit" disabled={busy || !email || !password}>
             {busy ? "One moment…" : isSignIn ? "Sign in" : "Create account"}
           </button>
         </form>
 
+        {isSignIn && (
+          <p className="switch-mode" style={{ marginTop: 12 }}>
+            <button type="button" className="link-button" onClick={() => void forgot()} disabled={busy}>
+              Forgot password?
+            </button>
+          </p>
+        )}
         <p className="switch-mode">
           {isSignIn ? "New to Gazi? " : "Already have an account? "}
           <button

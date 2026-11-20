@@ -1,0 +1,103 @@
+# Production: Gazi's services behind Nginx with Let's Encrypt. Supabase (Postgres + Auth) runs from Supabase's own
+# self-hosting compose on the same machine; Gazi joins its Docker network. See docs/runbooks/production.md.
+#
+#   docker compose -f infra/docker-compose.yml --env-file infra/.env.production up -d --build
+#
+# Secrets are Docker secrets (files in infra/secrets/, never committed); settings read /run/secrets/gazi_*.
+name: gazi
+
+x-backend: &backend
+  build: ../backend
+  restart: unless-stopped
+  env_file: .env.production
+  environment:
+    GAZI_ENVIRONMENT: production
+    GAZI_REDIS_URL: redis://redis:6379/0
+  secrets: [gazi_database_url, gazi_kek, gazi_gotrue_service_key, gazi_stripe_secret_key, gazi_stripe_webhook_secret,
+            gazi_openai_api_key, gazi_sendgrid_api_key]
+  volumes: [imports-data:/data/imports]
+  networks: [gazi, supabase]
+  depends_on: [redis]
+
+services:
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes: [redis-data:/data]
+    networks: [gazi]
+
+  api:
+    <<: *backend
+    command: ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000",
+              "--workers", "2", "--proxy-headers", "--forwarded-allow-ips", "*"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker-replies:
+    <<: *backend
+    command: ["arq", "app.workers.settings.RepliesWorker"]
+  worker-llm:
+    <<: *backend
+    command: ["arq", "app.workers.settings.LlmWorker"]
+  worker-imports:
+    <<: *backend
+    command: ["arq", "app.workers.settings.ImportsWorker"]
+  worker-sync:
+    <<: *backend
+    command: ["arq", "app.workers.settings.SyncWorker"]
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: https://${GAZI_DOMAIN}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_API_PUBLIC_URL: https://${GAZI_DOMAIN}
+    restart: unless-stopped
+    networks: [gazi]
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      GAZI_DOMAIN: ${GAZI_DOMAIN}
+    volumes:
+      - ./nginx/gazi.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - certbot-www:/var/www/certbot:ro
+      - letsencrypt:/etc/letsencrypt:ro
+    networks: [gazi, supabase]
+    depends_on: [api, frontend]
+
+  certbot:
+    image: certbot/certbot:v3.0.1
+    volumes:
+      - certbot-www:/var/www/certbot
+      - letsencrypt:/etc/letsencrypt
+    # Renews twice a day; the first certificate is issued by hand (runbook).
+    entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done"]
+
+secrets:
+  gazi_database_url: { file: ./secrets/gazi_database_url }
+  gazi_kek: { file: ./secrets/gazi_kek }
+  gazi_gotrue_service_key: { file: ./secrets/gazi_gotrue_service_key }
+  gazi_stripe_secret_key: { file: ./secrets/gazi_stripe_secret_key }
+  gazi_stripe_webhook_secret: { file: ./secrets/gazi_stripe_webhook_secret }
+  gazi_openai_api_key: { file: ./secrets/gazi_openai_api_key }
+  gazi_sendgrid_api_key: { file: ./secrets/gazi_sendgrid_api_key }
+
+volumes:
+  redis-data: {}
+  imports-data: {}
+  certbot-www: {}
+  letsencrypt: {}
+
+networks:
+  gazi: {}
+  supabase:
+    external: true
+    name: ${SUPABASE_NETWORK:-supabase_default}

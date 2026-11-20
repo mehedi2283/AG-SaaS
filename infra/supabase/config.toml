@@ -18,6 +18,8 @@ port = 54323
 
 [auth]
 site_url = "http://localhost:3000"
+# Where password-reset links may send people back to (the Account page sets the new password).
+additional_redirect_urls = ["http://localhost:3000/account"]
 enable_signup = true
 
 [auth.email]

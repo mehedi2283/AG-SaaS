@@ -5,6 +5,7 @@ const apiUrl = process.env.GAZI_API_URL ?? "http://localhost:8000";
 
 const config: NextConfig = {
   reactStrictMode: true,
+  output: "standalone", // the production image runs node server.js (frontend/Dockerfile)
   poweredByHeader: false,
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${apiUrl}/:path*` }];
