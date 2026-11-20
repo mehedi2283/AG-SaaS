@@ -105,6 +105,26 @@ and in a second window `cd frontend` then `npm run dev`. To get the newest code 
 `powershell -ExecutionPolicy Bypass -File infra/dev-setup.ps1` again (it keeps your keys and master key and applies
 new migrations).
 
+## Handy addresses and tips
+
+| What | Where |
+|---|---|
+| The app | http://localhost:3000 |
+| Database and sign-in accounts (Supabase Studio): every table, **Authentication → Users**, **SQL Editor** | http://localhost:54323 |
+| Local email inbox: sign-up and password-reset emails land here, nothing is really sent | http://localhost:54324 |
+| API docs (try any endpoint) | http://localhost:8000/docs |
+
+- **Forgot your password?** On the sign-in page type your email and choose **Forgot password?**, open the email at
+  http://localhost:54324, click the link, then set a new password on the **Account** page (bottom of the left menu).
+  If the link doesn't come back to the app, restart Supabase once: `npx supabase stop --workdir infra`, then
+  `npx supabase start --workdir infra`.
+- **Don't delete your account** to fix a password: your superuser role and workspace memberships go with it.
+- **Sign out** is at the bottom of the left menu, next to **Account**.
+- **Stripe test card:** `4242 4242 4242 4242`, any future date, any CVC.
+- **After `git pull`**, run the setup script again (step 2): it keeps your keys and applies new database changes.
+- Stripe, OpenAI and the other keys live only in `infra\.env` on each PC. Never paste secret keys into chats or
+  commit them.
+
 ## Setting it up by hand (what the script does)
 
 1. Get the code and open the folder:

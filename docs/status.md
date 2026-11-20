@@ -9,7 +9,7 @@ Last updated: 2026-11-20 (full v1 build session).
 ## Where things stand
 
 Every v1 area is built, with 341 backend tests (RLS, API, jobs with recorded provider responses), ruff + strict
-mypy clean, and the frontend type-checked and linted. Commits after `06e5c3b` are **local only** (the owner must
+mypy clean, and the frontend type-checked and linted. Everything is pushed to `main` (2026-11-20); pushing needs the owner's go-ahead each time (the owner must
 approve pushing to `main`).
 
 | Area | State | How it was verified |
