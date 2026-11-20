@@ -18,7 +18,7 @@ const ROLE_LABEL = { owner: "Owner", admin: "Admin", member: "Member", viewer: "
 
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { me, billing } = useWorkspace();
+  const { me, billing, signOut } = useWorkspace();
   // A workspace that has never subscribed sees the plan (with the free trial) instead of the app.
   const needsPlan = billing?.enabled && billing.access === "none";
 
@@ -41,8 +41,13 @@ export function Shell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </div>
-        <div className="rail-foot muted small" style={{ padding: "0 10px" }}>
-          {me.email}
+        <div className="rail-foot">
+          <span className="rail-email muted small" title={me.email ?? undefined}>
+            {me.email}
+          </span>
+          <button type="button" className="btn btn-quiet rail-signout" onClick={() => void signOut()}>
+            Sign out
+          </button>
         </div>
       </nav>
       <main className="main">
