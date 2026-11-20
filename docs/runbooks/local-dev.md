@@ -9,6 +9,18 @@ API from its docs page in the browser. The commands work in PowerShell (Windows)
 - Node.js 20 or newer (for `npx`). Check with `node --version`.
 - Git.
 
+## Fastest way (Windows)
+
+From the `AG-SaaS` folder, with Docker Desktop open:
+
+```bash
+powershell -ExecutionPolicy Bypass -File infra/dev-setup.ps1
+```
+
+It starts Supabase, writes `infra/.env`, starts Redis and the API, creates the demo user
+`demo@gazi.local` (password `gazi-demo-password`) and prints a sign-in token. Run it again any time for a
+fresh token. The manual steps below do the same thing by hand.
+
 ## First time
 
 1. Get the code and open the folder:
