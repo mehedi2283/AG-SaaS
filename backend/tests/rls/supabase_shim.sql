@@ -19,5 +19,7 @@ create table if not exists auth.users (
   raw_app_meta_data  jsonb not null default '{}'::jsonb,
   created_at         timestamptz not null default now()
 );
+alter table auth.users add column if not exists last_sign_in_at timestamptz;
+alter table auth.users add column if not exists banned_until timestamptz;
 
 grant usage on schema public to anon, authenticated, service_role;

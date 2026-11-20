@@ -40,6 +40,7 @@ class FakeStripe:
     portals: list[str] = field(default_factory=list)
     items: list[SubscriptionItem] = field(default_factory=list)
     changes: list[tuple[list[dict[str, Any]], bool]] = field(default_factory=list)
+    trial_ends: list[tuple[str, Any]] = field(default_factory=list)
     _verify: StripeBilling = field(default_factory=lambda: StripeBilling("sk_test_unused", WEBHOOK_SECRET))
 
     async def create_customer(self, tenant_id: UUID, name: str) -> str:
@@ -65,6 +66,9 @@ class FakeStripe:
 
     async def change_items(self, subscription_id: str, items: list[dict[str, Any]], *, end_trial: bool) -> None:
         self.changes.append((items, end_trial))
+
+    async def set_trial_end(self, subscription_id: str, trial_end: Any) -> None:
+        self.trial_ends.append((subscription_id, trial_end))
 
 
 @dataclass
@@ -405,3 +409,22 @@ async def test_ai_settings_need_admin(api: Harness, seed: Seed) -> None:
     assert (await api.client.get("/v1/workspace/ai-settings", headers=member)).status_code == 200
     r = await api.client.patch("/v1/workspace/ai-settings", json={"auto_reply": True}, headers=member)
     assert r.status_code == 403
+
+
+async def test_free_access_also_moves_a_stripe_trial(
+    bapi: BillingHarness, seed: Seed, superuser: psycopg.Connection
+) -> None:
+    tenant_id, _, customer = await subscribed_workspace(bapi, seed, superuser, status="trialing")
+    superuser.execute(
+        "insert into public.platform_admins (user_id) values (%s) on conflict do nothing", [seed.outsider]
+    )
+    try:
+        until = "2027-06-30T00:00:00Z"
+        r = await bapi.client.post(
+            f"/v1/admin/tenants/{tenant_id}/free-access", json={"until": until}, headers=auth(seed.outsider)
+        )
+        assert r.status_code == 200, r.text
+        assert bapi.stripe.trial_ends and bapi.stripe.trial_ends[-1][0] == "sub_" + customer.removeprefix("cus_")
+        assert bapi.stripe.trial_ends[-1][1].isoformat().startswith("2027-06-30")
+    finally:
+        superuser.execute("delete from public.platform_admins where user_id = %s", [seed.outsider])

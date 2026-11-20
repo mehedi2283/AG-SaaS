@@ -28,6 +28,7 @@ class Me(BaseModel):
     active_tenant_id: UUID | None
     active_role: Role | None
     workspaces: list[Membership]
+    is_platform_admin: bool = False
 
 
 class ActiveTenantRequest(BaseModel):

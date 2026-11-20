@@ -7,7 +7,7 @@ import psycopg
 from .conftest import Seed
 
 # Documented exemptions from the tenant_id column (see 202611200002_tables.sql header).
-NO_TENANT_ID = {"tenants", "users"}
+NO_TENANT_ID = {"tenants", "users", "platform_admins", "platform_audit"}  # last two: platform-level (0008)
 
 
 def _public_tables(conn: psycopg.Connection) -> list[str]:

@@ -66,6 +66,7 @@ export type Me = {
   active_tenant_id: string | null;
   active_role: Role | null;
   workspaces: Membership[];
+  is_platform_admin: boolean;
 };
 
 export type Provider = "instantly" | "heyreach" | "apollo" | "calendly";
@@ -120,3 +121,50 @@ export type AiSettings = {
 export type Redirect = { url: string };
 
 export const ROLE_RANK: Record<Role, number> = { viewer: 1, member: 2, admin: 3, owner: 4 };
+
+// ---- Superuser (backend/app/domain/admin/schemas.py) ----
+
+export type AdminTenant = {
+  id: string;
+  name: string;
+  slug: string;
+  status: "active" | "suspended" | "deleted";
+  created_at: string;
+  members: number;
+  owner_email: string | null;
+  subscription_status: string;
+  trial_end: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  access: BillingAccess;
+  comp_until: string | null;
+  addon_tokens: number;
+  tokens_this_month: number;
+  token_cap: number;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+};
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  created_at: string;
+  last_sign_in_at: string | null;
+  banned_until: string | null;
+  workspaces: number;
+  is_platform_admin: boolean;
+  login_enabled: boolean;
+};
+
+export type AdminMember = { user_id: string; email: string; role: Role; status: string; created_at: string };
+
+export type AdminActivity = {
+  source: "platform" | "workspace";
+  created_at: string;
+  tenant_id: string | null;
+  tenant_name: string | null;
+  actor_email: string | null;
+  action: string;
+  target_user_email: string | null;
+  diff: Record<string, unknown>;
+};

@@ -633,3 +633,108 @@ def test_billing_access_follows_status_and_grace(
     # Tenant B (active) is unaffected by A's state.
     with as_user(conn, seed.b.users["viewer"], seed.b.id, setup=setup) as c:
         assert scalar(c, "select access from app.billing_access()") == "active"
+
+
+# ---------------------------------------------------------------------------
+# Platform superusers
+# ---------------------------------------------------------------------------
+
+
+def _make_admin(user: uuid.UUID) -> list[str]:
+    return [f"insert into public.platform_admins (user_id) values ('{user}')"]
+
+
+ADMIN_READS = [
+    "select * from app.admin_tenants()",
+    "select * from app.admin_users()",
+    "select * from app.admin_activity(10)",
+]
+
+
+@pytest.mark.parametrize("query", [*ADMIN_READS, "select app.admin_set_tenant_status('{b}', 'suspended')"])
+def test_admin_functions_refuse_everyone_else(conn: psycopg.Connection, seed: Seed, query: str) -> None:
+    """Even a workspace owner gets nothing cross-tenant without a platform_admins row."""
+    with as_user(conn, seed.a.users["owner"], seed.a.id) as c:
+        with pytest.raises(errors.InsufficientPrivilege):
+            c.execute(query.format(b=seed.b.id))
+
+
+@pytest.mark.parametrize("query", ADMIN_READS)
+def test_admin_reads_work_for_a_platform_admin(conn: psycopg.Connection, seed: Seed, query: str) -> None:
+    with as_user(conn, seed.outsider, None, setup=_make_admin(seed.outsider)) as c:
+        c.execute(query)
+
+
+def test_admin_overview_spans_tenants_without_content(conn: psycopg.Connection, seed: Seed) -> None:
+    with as_user(conn, seed.outsider, None, setup=_make_admin(seed.outsider)) as c:
+        rows = {r[0]: r for r in c.execute("select id, members, access from app.admin_tenants()")}
+        assert {seed.a.id, seed.b.id} <= set(rows)
+        assert rows[seed.a.id][1] == 4 and rows[seed.a.id][2] == "active"
+        users = {r[0] for r in c.execute("select id from app.admin_users()")}
+        assert set(seed.a.users.values()) | set(seed.b.users.values()) <= users
+        # The overview never opens tenant tables: content stays behind RLS.
+        assert scalar(c, "select count(*) from public.leads") == 0
+        assert scalar(c, "select count(*) from public.replies") == 0
+
+
+def test_nobody_can_make_themselves_a_platform_admin(conn: psycopg.Connection, seed: Seed) -> None:
+    for role in ("authenticated", "gazi_worker", "anon", "service_role"):
+        with as_role(conn, role) as c:
+            with pytest.raises(errors.InsufficientPrivilege):
+                c.execute("insert into public.platform_admins (user_id) values (%s)", [seed.outsider])
+    with as_user(conn, seed.a.users["owner"], seed.a.id) as c:
+        with pytest.raises(errors.InsufficientPrivilege):
+            c.execute("insert into public.platform_audit (action) values ('x')")
+
+
+def test_platform_admins_table_shows_only_your_own_row(conn: psycopg.Connection, seed: Seed) -> None:
+    setup = _make_admin(seed.outsider) + _make_admin(seed.b.users["owner"])
+    with as_user(conn, seed.outsider, None, setup=setup) as c:
+        assert {r[0] for r in c.execute("select user_id from public.platform_admins")} == {seed.outsider}
+        assert scalar(c, "select app.is_platform_admin()") is True
+    with as_user(conn, seed.a.users["owner"], seed.a.id, setup=setup) as c:
+        assert c.execute("select user_id from public.platform_admins").fetchall() == []
+        assert scalar(c, "select app.is_platform_admin()") is False
+
+
+def test_admin_suspends_a_workspace_and_it_is_logged(conn: psycopg.Connection, seed: Seed) -> None:
+    conn.execute("begin")
+    try:
+        for stmt in _make_admin(seed.outsider):
+            conn.execute(stmt)
+        conn.execute("set local role authenticated")
+        conn.execute("select set_config('request.jwt.claims', %s, true)", [json.dumps({"sub": str(seed.outsider)})])
+        conn.execute("select app.admin_set_tenant_status(%s, 'suspended')", [seed.b.id])
+        logged = conn.execute("select action, diff from app.admin_activity(5) where source = 'platform'").fetchone()
+        assert logged == ("workspace.status_changed", {"from": "active", "to": "suspended"})
+        # B's owner is locked out at once (has_role requires an active tenant).
+        conn.execute(
+            "select set_config('request.jwt.claims', %s, true)",
+            [json.dumps({"sub": str(seed.b.users["owner"]), "tenant_id": str(seed.b.id)})],
+        )
+        assert scalar(conn, "select count(*) from public.campaigns") == 0
+    finally:
+        conn.execute("rollback")
+
+
+def test_free_access_overrides_a_lapsed_subscription(conn: psycopg.Connection, seed: Seed) -> None:
+    lapse = (
+        f"update public.subscriptions set status = 'canceled', lapsed_at = now() - interval '30 days'"
+        f" where tenant_id = '{seed.a.id}'"
+    )
+    with as_user(conn, seed.outsider, None, setup=[lapse, *_make_admin(seed.outsider)]) as c:
+        c.execute("select app.admin_set_comp(%s, now() + interval '30 days')", [seed.a.id])
+        access = {r[0]: r[1] for r in c.execute("select id, access from app.admin_tenants()")}
+        assert access[seed.a.id] == "active"
+        with pytest.raises(errors.InvalidParameterValue):
+            c.execute("select app.admin_set_comp(%s, now() - interval '1 day')", [seed.a.id])
+
+
+def test_admin_member_changes_keep_an_owner(conn: psycopg.Connection, seed: Seed) -> None:
+    with as_user(conn, seed.outsider, None, setup=_make_admin(seed.outsider)) as c:
+        c.execute("select app.admin_set_member_role(%s, %s, 'admin')", [seed.a.id, seed.a.users["member"]])
+        roles = {r[0]: r[1] for r in c.execute("select user_id, role from app.admin_members(%s)", [seed.a.id])}
+        assert roles[seed.a.users["member"]] == "admin"
+        c.execute("select app.admin_remove_member(%s, %s)", [seed.a.id, seed.a.users["viewer"]])
+        with pytest.raises(errors.CheckViolation):  # the workspace's only owner
+            c.execute("select app.admin_remove_member(%s, %s)", [seed.a.id, seed.a.users["owner"]])

@@ -12,7 +12,7 @@ from arq import create_pool as create_redis
 from arq.connections import RedisSettings
 from fastapi import FastAPI, Request, Response
 
-from app.api.v1 import billing, integrations, session, webhook_endpoints, workspace
+from app.api.v1 import admin, billing, integrations, session, webhook_endpoints, workspace
 from app.core.config import Settings, get_settings
 from app.core.crypto import Crypto
 from app.core.errors import ServiceUnavailable, install_error_handlers
@@ -104,7 +104,14 @@ def create_app(
             raise ServiceUnavailable("A dependency isn't reachable.", code="not_ready") from exc
         return {"status": "ready"}
 
-    for router in (session.router, integrations.router, webhook_endpoints.router, billing.router, workspace.router):
+    for router in (
+        session.router,
+        integrations.router,
+        webhook_endpoints.router,
+        billing.router,
+        workspace.router,
+        admin.router,
+    ):
         app.include_router(router, prefix="/v1")
     app.include_router(webhooks_router)
     return app

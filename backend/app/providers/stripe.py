@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -59,6 +60,8 @@ class BillingProvider(Protocol):
     async def subscription_items(self, subscription_id: str) -> list[SubscriptionItem]: ...
 
     async def change_items(self, subscription_id: str, items: list[dict[str, Any]], *, end_trial: bool) -> None: ...
+
+    async def set_trial_end(self, subscription_id: str, trial_end: datetime) -> None: ...
 
 
 def _fail(op: str, exc: stripe.StripeError) -> AppError:
@@ -175,6 +178,14 @@ class StripeBilling:
             await self._client.v1.subscriptions.update_async(subscription_id, params)  # type: ignore[arg-type]
         except stripe.StripeError as exc:
             raise _fail("subscriptions.update", exc) from exc
+
+    async def set_trial_end(self, subscription_id: str, trial_end: datetime) -> None:
+        """Move a trial's end (free access granted by a superuser), without charging anything now."""
+        params: dict[str, Any] = {"trial_end": int(trial_end.timestamp()), "proration_behavior": "none"}
+        try:
+            await self._client.v1.subscriptions.update_async(subscription_id, params)  # type: ignore[arg-type]
+        except stripe.StripeError as exc:
+            raise _fail("subscriptions.update(trial_end)", exc) from exc
 
     def parse_event(self, body: bytes, signature: str | None) -> dict[str, Any]:
         """Verify the Stripe-Signature header (HMAC, constant-time, 5-minute tolerance), then parse."""

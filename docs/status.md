@@ -16,6 +16,7 @@ Last updated: 2026-11-20 (billing session).
 | Frontend: sign-in, workspace setup and switcher, Settings (accounts, webhook addresses) | Done. Verified in a browser against the local stack. | `main` |
 | Billing (Stripe): plan screen, 14-day trial checkout, portal, webhooks, grace/paused banner | Done. Verified end to end against the Stripe sandbox (API + webhooks); screens not yet checked in a browser. `ensure_access` is ready but not wired: launches and AI don't exist yet. | `main` |
 | AI allowance + token packs (2M included; +2M $49, +5M $99, +12M $199 monthly), workspace AI settings (auto-reply on/off, model choice) | Done. Pack purchase verified end to end against the Stripe sandbox; screens not yet checked in a browser. `ensure_token_budget` is ready for the LLM client. | local commit |
+| Superuser dashboard (`/admin`): all workspaces, people, activity; suspend/reactivate, disable/enable login, roles/remove members, free access (also moves a Stripe trial) | Done. 278 tests. Login disable verified against local Supabase Auth; page not yet checked in a browser. The owner's local account is the only superuser. | local commit |
 | Frontend: Replies, Campaigns, Leads | Empty states only; each waits for its backend. | |
 | Reply pipeline (worker, classify, draft, guards, send) | **Next.** | |
 | Leads (CSV import + duplicates, Apollo search + scoring), sequence generation, launching Instantly/HeyReach campaigns | Not started. | |
@@ -69,6 +70,13 @@ the workflow code and must be checked against a real event before the reply pipe
   amount now (`always_invoice`, refused if the card fails); adding one during the trial ends the trial.
 - Stripe CLI is installed via winget; local testing: `stripe listen --forward-to localhost:8000/webhooks/stripe`.
 - The owner should roll the sandbox secret key: it appeared in a CLI error output during testing.
+
+## Superuser notes (decided 2026-11-20)
+
+- Account overview only: workspaces, people, plans, usage, audit history. Never tenant content.
+- Added by SQL only (runbook). Password login for now; add 2FA (Supabase MFA, `aal2`) before going live.
+- Disabling a login is a GoTrue ban; an access token already issued lasts until it expires (max 1 hour).
+- Free access for a paying workspace doesn't stop Stripe billing; refund or cancel in Stripe.
 
 ## Owner's preferences
 

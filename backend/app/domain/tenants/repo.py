@@ -32,3 +32,8 @@ async def merge_tenant_settings(conn: asyncpg.Connection, changes: dict[str, Any
     """Merge keys into the active tenant's settings. False if RLS let nothing through (not an admin)."""
     result: str = await conn.execute("update public.tenants set settings = settings || $1::jsonb", changes)
     return result != "UPDATE 0"
+
+
+async def is_platform_admin(conn: asyncpg.Connection) -> bool:
+    value: bool = await conn.fetchval("select app.is_platform_admin()")
+    return value

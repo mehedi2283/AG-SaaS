@@ -20,7 +20,10 @@ export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { me, billing, signOut } = useWorkspace();
   // A workspace that has never subscribed sees the plan (with the free trial) instead of the app.
-  const needsPlan = billing?.enabled && billing.access === "none";
+  // The superuser dashboard is about every workspace, so it is never gated by this one's plan.
+  const onAdmin = pathname.startsWith("/admin");
+  const needsPlan = billing?.enabled && billing.access === "none" && !onAdmin;
+  const nav = me.is_platform_admin ? [...NAV, { href: "/admin", label: "Superuser" }] : NAV;
 
   return (
     <div className="shell">
@@ -30,7 +33,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </Link>
         <WorkspaceSwitcher />
         <div className="rail-nav">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -51,7 +54,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </nav>
       <main className="main">
-        <BillingBanner />
+        {!onAdmin && <BillingBanner />}
         {needsPlan ? <ChoosePlan /> : children}
       </main>
     </div>

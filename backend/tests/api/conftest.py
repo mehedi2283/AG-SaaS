@@ -48,9 +48,13 @@ class FakeQueue:
 @dataclass
 class FakeAuthAdmin:
     calls: list[tuple[UUID, UUID]] = field(default_factory=list)
+    logins: list[tuple[UUID, bool]] = field(default_factory=list)
 
     async def set_active_tenant(self, user_id: UUID, tenant_id: UUID) -> None:
         self.calls.append((user_id, tenant_id))
+
+    async def set_login_enabled(self, user_id: UUID, enabled: bool) -> None:
+        self.logins.append((user_id, enabled))
 
 
 @pytest.fixture(scope="session")

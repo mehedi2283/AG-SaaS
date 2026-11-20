@@ -22,6 +22,7 @@ async def me(principal: Principal = Depends(current_principal), conn: asyncpg.Co
         active_tenant_id=principal.tenant_id,
         active_role=principal.tenant_role,
         workspaces=await repo.my_workspaces(conn),
+        is_platform_admin=await repo.is_platform_admin(conn),
     )
 
 

@@ -96,6 +96,20 @@ Studio shows every table, so you can see what each call stored.
 The API reloads by itself when code in `backend/app` changes. After changing `infra/.env`, run the start
 command for the API again with `--force-recreate`.
 
+## Make someone a superuser
+
+A superuser sees every workspace and person on the **Superuser** page (accounts, plans, usage; never leads or
+replies) and can suspend workspaces, disable logins, manage members and give free access. Nobody can become
+one from the app. In Studio (http://localhost:54323), open **SQL Editor** and run, with their email:
+
+```sql
+insert into public.platform_admins (user_id, note)
+select id, 'superuser' from public.users where email = 'person@example.com';
+```
+
+To remove one: `delete from public.platform_admins where user_id = (select id from public.users where email = 'person@example.com');`
+In production, run the same SQL as the database owner.
+
 ## Billing (Stripe sandbox)
 
 Billing is on when `GAZI_STRIPE_SECRET_KEY` and `GAZI_STRIPE_PRICE_ID` are set in `infra/.env` (see

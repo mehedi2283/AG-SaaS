@@ -32,13 +32,17 @@ preferences), then `docs/architecture.md`. Update `docs/status.md` at the end of
 ## Non-negotiable rules
 1. Multi-tenant everywhere
    - Every table has `tenant_id uuid not null default app.tenant_id()` and RLS ENABLED + FORCED, with policies
-     for each operation. Only exemptions: `tenants` (id is the tenant) and `users` (identity spans tenants).
+     for each operation. Only exemptions: `tenants` (id is the tenant), `users` (identity spans tenants), and
+     the platform-level `platform_admins` / `platform_audit` (superusers, 2026-11-20).
    - No role is granted INSERT/UPDATE on tenant_id; it always comes from the column default.
    - Tenant-to-tenant references are composite FKs on (tenant_id, id).
    - New tables must also: revoke from anon/service_role (default privileges already do this), use
      column-level grants for secret columns, and get a worker policy if workers touch them.
    - The tenant comes ONLY from the verified JWT claim `tenant_id` (injected by `app.custom_access_token_hook`).
    - Never accept tenant_id in a request body, query, path or header. Use `Depends(current_tenant)`.
+     Sole exception: `/v1/admin/*` (superusers) names a TARGET workspace in the path. Those routes only call
+     the `app.admin_*` SECURITY DEFINER functions, which check `platform_admins` themselves. Superusers see
+     the account overview only, never tenant content; nobody is made superuser from the app (SQL only).
    - API DB work runs as role `authenticated` with `request.jwt.claims` set per transaction. Never use
      the service role for tenant data.
    - Workers run as `gazi_worker` (no BYPASSRLS) with `app.tenant_id` set by `@tenant_job`.
