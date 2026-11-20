@@ -33,6 +33,9 @@ if ($LASTEXITCODE -ne 0) { Fail "Docker isn't running. Open Docker Desktop, wait
 Step "2/5 Starting Supabase (the first run downloads for a few minutes)"
 npx -y supabase start --workdir infra
 if ($LASTEXITCODE -ne 0) { Fail "Supabase didn't start. Read the message above, or run: npx supabase stop --all" }
+# A database that already existed only gets migrations added since; a new one already has them all.
+npx -y supabase migration up --workdir infra
+if ($LASTEXITCODE -ne 0) { Fail "A database migration failed. Read the message above." }
 
 $status = @{}
 foreach ($line in (npx -y supabase status --workdir infra -o env)) {

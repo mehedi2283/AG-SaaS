@@ -1,35 +1,111 @@
 # Run Gazi on your computer
 
-This starts the database, sign-in service and API on your machine. There's no app screen yet: you use the
-API from its docs page in the browser. The commands work in PowerShell (Windows) and Terminal (Mac).
+This runs the whole app on your PC: the database and sign-in (Supabase), the API, four background workers,
+and the web app. Commands are for PowerShell on Windows. Run them one at a time.
 
 ## You need
 
-- Docker Desktop, running.
-- Node.js 20 or newer (for `npx`). Check with `node --version`.
-- Git.
+- **Docker Desktop**, open and running (https://www.docker.com/products/docker-desktop/).
+- **Node.js 20 or newer** (https://nodejs.org). Check with `node --version`.
+- **Git** (https://git-scm.com).
 
-## Fastest way (Windows)
+## Start on a new PC (after cloning)
 
-From the `AG-SaaS` folder, with Docker Desktop open:
+1. Get the code and open the folder:
 
-```bash
-powershell -ExecutionPolicy Bypass -File infra/dev-setup.ps1
+   ```
+   git clone https://github.com/mehedi2283/AG-SaaS.git
+   ```
+   ```
+   cd AG-SaaS
+   ```
+
+2. Run the setup script. It starts Supabase (the first run downloads a few GB and takes several minutes),
+   creates `infra/.env` and `frontend/.env.local`, applies every database migration, starts Redis, the API
+   and the workers, and creates a demo user:
+
+   ```
+   powershell -ExecutionPolicy Bypass -File infra/dev-setup.ps1
+   ```
+
+3. Add your own keys. Git never stores them, so a new PC starts without them. Open `infra/.env` in Notepad:
+
+   ```
+   notepad infra\.env
+   ```
+
+   and fill in what you use (each is optional; without it that part is simply off):
+
+   | Line | What it turns on | Where to get it |
+   |---|---|---|
+   | `GAZI_OPENAI_API_KEY=` | AI writing, reply drafts, lead scoring | platform.openai.com, API keys |
+   | `GAZI_STRIPE_SECRET_KEY=` and `GAZI_STRIPE_PRICE_ID=` | Billing (plan screen, trial, packs) | Stripe sandbox, Developers, API keys; price ids in `docs/status.md` |
+   | `GAZI_STRIPE_TOKEN_PACKS=` | Token packs | the three pack price ids, see `docs/status.md` |
+   | `GAZI_STRIPE_WEBHOOK_SECRET=` | Stripe telling Gazi about payments | step 6 below |
+   | `GAZI_SENDGRID_API_KEY=` | Emailing weekly reports and alerts | SendGrid, Settings, API keys |
+
+   Easiest: copy these lines from `infra\.env` on your other PC. **Don't copy `GAZI_KEK`**: the new PC has its own
+   empty database and its own master key.
+
+   Then restart the API and workers so they read the keys:
+
+   ```
+   docker compose -f infra/docker-compose.dev.yml up -d --force-recreate
+   ```
+
+4. Start the web app in a **second** PowerShell window:
+
+   ```
+   cd AG-SaaS/frontend
+   ```
+   ```
+   npm install
+   ```
+   ```
+   npm run dev
+   ```
+
+   Open http://localhost:3000. Sign in as `demo@gazi.local` / `gazi-demo-password`, or create your own account.
+
+5. Make your account the superuser (the new database doesn't know you yet). Create your account in the app first,
+   then open Studio at http://localhost:54323, choose **SQL Editor**, and run (with your email):
+
+   ```sql
+   insert into public.platform_admins (user_id, note)
+   select id, 'owner' from public.users where email = 'you@example.com';
+   ```
+
+   Sign out and in again; **Superuser** appears in the menu.
+
+6. Only if you use billing: forward Stripe's sandbox events to your PC in a third window and keep it open.
+   Install the Stripe CLI once (`winget install Stripe.StripeCli`, then open a new window), then:
+
+   ```
+   stripe login
+   ```
+   ```
+   stripe listen --forward-to localhost:8000/webhooks/stripe
+   ```
+
+   The first time, copy the `whsec_...` it prints into `GAZI_STRIPE_WEBHOOK_SECRET` in `infra/.env` and run the
+   restart command from step 3 again.
+
+## Next time you start the PC
+
+Open Docker Desktop, then in the `AG-SaaS` folder:
+
+```
+npx supabase start --workdir infra
+```
+```
+docker compose -f infra/docker-compose.dev.yml up -d
 ```
 
-It starts Supabase, writes `infra/.env` and `frontend/.env.local`, starts Redis and the API, creates the
-demo user `demo@gazi.local` (password `gazi-demo-password`) and prints a sign-in token. Run it again any
-time for a fresh token. The manual steps below do the same thing by hand.
+and in a second window `cd frontend` then `npm run dev`. To get the newest code first: `git pull`, then run
+`powershell -ExecutionPolicy Bypass -File infra/dev-setup.ps1` again (it keeps your keys and master key and applies
+new migrations).
 
-Then start the app in a second PowerShell window and open <http://localhost:3000>:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-## First time
+## Setting it up by hand (what the script does)
 
 1. Get the code and open the folder:
 
