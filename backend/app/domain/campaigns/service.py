@@ -60,9 +60,7 @@ def default_steps(channel: Channel, count: int) -> list[tuple[int, int, str]]:
 
 def _out(row: asyncpg.Record) -> CampaignOut:
     data = dict(row)
-    counts = CampaignCounts(
-        **{k: data.pop(k) for k in ("leads", "ready", "pushed", "replied", "pending_duplicates", "bookings")}
-    )
+    counts = CampaignCounts(**{k: data.pop(k) for k in repo.COUNT_KEYS})
     return CampaignOut(**data, counts=counts)
 
 
