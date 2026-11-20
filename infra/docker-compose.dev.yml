@@ -23,9 +23,11 @@ services:
     extra_hosts: ["host.docker.internal:host-gateway"]
     depends_on: [redis]
 
-  # Background workers, one per queue (replies never wait behind imports). They reload when code changes.
+  # Background workers, one per queue (replies never wait behind imports). They reload when code changes, and
+  # Docker restarts one that exits (a burst of reloads can time out on Redis and stop the process).
   worker-replies: &worker
     build: ../backend
+    restart: unless-stopped
     env_file: .env
     environment:
       GAZI_REDIS_URL: redis://redis:6379/0
