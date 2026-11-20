@@ -7,6 +7,9 @@ human-approved draft. Plus: Calendly booking tracking and weekly per-campaign re
 Instantly/HeyReach are the sending layer: we create their campaigns, sequences and lists via their APIs,
 and their sequences send the follow-ups (we never schedule individual sends).
 
+Start here in a new session: read `docs/status.md` (progress, n8n findings, open questions, owner's
+preferences), then `docs/architecture.md`. Update `docs/status.md` at the end of each session.
+
 ## Stack
 - frontend/  Next.js (App Router, TypeScript). Supabase JS for auth only; all data via the API.
 - backend/   Python 3.12, FastAPI, Pydantic v2, asyncpg, httpx, structlog. Managed with uv.
