@@ -1,4 +1,7 @@
-"""JWT verification. The ONLY place tokens are verified, so switching to asymmetric/JWKS is one change.
+"""JWT verification. The ONLY place tokens are verified.
+
+Asymmetric tokens (ES256/RS256, current Supabase) are checked against the public keys at GAZI_JWT_JWKS_URL;
+legacy HS256 tokens against GAZI_JWT_SECRET. Only algorithms with a configured key are accepted.
 
 The tenant comes only from the verified `tenant_id` claim (set by app.custom_access_token_hook).
 Role checks here are a fast path; RLS re-checks the live membership on every query.
@@ -8,15 +11,18 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, Literal
 from uuid import UUID
 
+import anyio
 import jwt
 import structlog
-from fastapi import Depends, Header
+from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.config import Settings, app_settings
-from app.core.errors import Forbidden, Unauthorized
+from app.core.errors import Forbidden, ServiceUnavailable, Unauthorized
 
 Role = Literal["owner", "admin", "member", "viewer"]
 ROLE_RANK: dict[str, int] = {"viewer": 1, "member": 2, "admin": 3, "owner": 4}
@@ -45,12 +51,45 @@ def _uuid(value: Any) -> UUID | None:
         return None
 
 
-def verify_token(token: str, settings: Settings) -> Principal:
+ASYMMETRIC_ALGORITHMS = ("ES256", "RS256")
+log = structlog.get_logger()
+
+
+@lru_cache(maxsize=4)
+def _jwks_client(url: str) -> jwt.PyJWKClient:
+    # Caches the key set for 5 minutes and refetches once when it meets an unknown key id (key rotation).
+    return jwt.PyJWKClient(url, cache_jwk_set=True, lifespan=300, timeout=5)
+
+
+async def signing_key(token: str, settings: Settings) -> tuple[Any, list[str]]:
+    """The key and the single algorithm allowed for this token, based on configuration, never on trust."""
+    try:
+        alg = jwt.get_unverified_header(token).get("alg")
+    except jwt.PyJWTError as exc:
+        raise Unauthorized("The access token is invalid. Sign in again.", code="invalid_token") from exc
+    if alg in ASYMMETRIC_ALGORITHMS and settings.jwt_jwks_url:
+        client = _jwks_client(settings.jwt_jwks_url)
+        try:
+            key = await anyio.to_thread.run_sync(client.get_signing_key_from_jwt, token)
+        except jwt.PyJWKClientConnectionError as exc:
+            log.error("auth.jwks_unreachable", error_type=type(exc).__name__)
+            raise ServiceUnavailable(
+                "Sign-in keys couldn't be loaded. Try again.", code="auth_keys_unavailable"
+            ) from exc
+        except jwt.PyJWKClientError as exc:
+            raise Unauthorized("The access token is invalid. Sign in again.", code="invalid_token") from exc
+        return key.key, [alg]
+    if alg == "HS256" and settings.jwt_secret:
+        return settings.jwt_secret.get_secret_value(), ["HS256"]
+    raise Unauthorized("The access token is invalid. Sign in again.", code="invalid_token")
+
+
+def verify_token(token: str, key: Any, algorithms: list[str], settings: Settings) -> Principal:
     try:
         payload: dict[str, Any] = jwt.decode(
             token,
-            settings.jwt_secret.get_secret_value(),
-            algorithms=["HS256"],
+            key,
+            algorithms=algorithms,
             audience=settings.jwt_audience,
             options={"require": ["exp", "sub", "aud"]},
         )
@@ -70,13 +109,19 @@ def verify_token(token: str, settings: Settings) -> Principal:
     return Principal(user_id, payload.get("email"), tenant_id, tenant_role, payload)
 
 
+# Declared as HTTP bearer so the API docs page offers an "Authorize" button.
+_bearer = HTTPBearer(auto_error=False, description="Supabase access token")
+
+
 async def current_principal(
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     settings: Settings = Depends(app_settings),
 ) -> Principal:
-    if not authorization or not authorization.lower().startswith("bearer "):
+    if credentials is None or credentials.scheme.lower() != "bearer" or not credentials.credentials:
         raise Unauthorized("Sign in to continue.", code="missing_token")
-    principal = verify_token(authorization[7:].strip(), settings)
+    token = credentials.credentials.strip()
+    key, algorithms = await signing_key(token, settings)
+    principal = verify_token(token, key, algorithms, settings)
     structlog.contextvars.bind_contextvars(user_id=str(principal.user_id))
     return principal
 

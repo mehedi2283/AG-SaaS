@@ -16,7 +16,8 @@ and their sequences send the follow-ups (we never schedule individual sends).
 - docs/      architecture.md, ADRs, runbooks.
 
 ## Commands
-- Up (dev):        docker compose -f infra/docker-compose.yml up -d
+- Local dev:       see docs/runbooks/local-dev.md. In short: npx supabase start --workdir infra, then
+                   docker compose -f infra/docker-compose.dev.yml up -d --build (API on :8000, Studio on :54323)
 - Backend tests:   cd backend && uv run pytest
 - RLS tests only:  cd backend && uv run pytest tests/rls
                    (needs GAZI_TEST_DSN = superuser DSN of a disposable Postgres 15+; fails if unset)
@@ -98,8 +99,9 @@ and their sequences send the follow-ups (we never schedule individual sends).
 - Instantly and HeyReach campaigns are created via API by Gazi, not linked by hand.
 - In scope for v1: Apollo API lead pulling + buyer scoring, Calendly booking webhooks, weekly report
   emails, error alerts.
-- Supabase JWT: HS256 (the self-host default), with the secret from a Docker secret. Verify ONLY in
-  `app/core/auth.py`, so a later switch to asymmetric/JWKS is a single change.
+- Supabase JWT: current Supabase signs ES256 tokens; verify them against GAZI_JWT_JWKS_URL. HS256 with
+  GAZI_JWT_SECRET is accepted only if configured (legacy). Only algorithms with a configured key are
+  accepted. Verify ONLY in `app/core/auth.py`. (Changed 2026-11-20 after testing against real Supabase.)
 
 ## Provider gotchas
 - Instantly: use a direct webhook to our endpoint (the native reply trigger times out). Sequence steps

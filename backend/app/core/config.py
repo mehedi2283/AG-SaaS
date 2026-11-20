@@ -7,7 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from fastapi import Request
-from pydantic import SecretStr
+from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _SECRETS_DIR = Path(os.environ.get("GAZI_SECRETS_DIR", "/run/secrets"))
@@ -27,9 +27,11 @@ class Settings(BaseSettings):
     database_url: SecretStr
     redis_url: str = "redis://localhost:6379/0"
 
-    # Supabase Auth (GoTrue). The JWT secret verifies user tokens; the service key is used ONLY for the
-    # GoTrue admin API (setting app_metadata.active_tenant_id), never for tenant data.
-    jwt_secret: SecretStr
+    # Supabase Auth (GoTrue). Current Supabase signs tokens with asymmetric keys (ES256) published at
+    # <auth url>/.well-known/jwks.json; set jwt_jwks_url to that. jwt_secret verifies legacy HS256 tokens.
+    # The service key is used ONLY for the GoTrue admin API (app_metadata.active_tenant_id), never for data.
+    jwt_jwks_url: str | None = None
+    jwt_secret: SecretStr | None = None
     jwt_audience: str = "authenticated"
     gotrue_url: str = "http://auth:9999"
     gotrue_service_key: SecretStr
@@ -39,6 +41,12 @@ class Settings(BaseSettings):
     kek_version: int = 1
 
     max_webhook_bytes: int = 512_000
+
+    @model_validator(mode="after")
+    def _one_token_verifier(self) -> Settings:
+        if not self.jwt_jwks_url and not self.jwt_secret:
+            raise ValueError("set GAZI_JWT_JWKS_URL (ES256/RS256) and/or GAZI_JWT_SECRET (HS256)")
+        return self
 
 
 @lru_cache

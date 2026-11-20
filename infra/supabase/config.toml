@@ -1,0 +1,29 @@
+# Local development only: `npx supabase start --workdir infra` runs Postgres, Auth and Studio in Docker
+# and applies infra/supabase/migrations, then seed.sql. Production uses the self-hosted stack instead.
+project_id = "gazi"
+
+[api]
+port = 54321
+
+[db]
+port = 54322
+major_version = 15
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[studio]
+port = 54323
+
+[auth]
+site_url = "http://localhost:3000"
+enable_signup = true
+
+[auth.email]
+enable_confirmations = false
+
+# Puts tenant_id + tenant_role into every access token (see 202611200003_access.sql).
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/app/custom_access_token_hook"

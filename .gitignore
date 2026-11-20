@@ -30,3 +30,7 @@ infra/data/
 .DS_Store
 .idea/
 .vscode/
+
+# Supabase CLI local state (contains generated secrets)
+infra/supabase/.temp/
+infra/supabase/.branches/
