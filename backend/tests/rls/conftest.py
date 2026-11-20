@@ -205,8 +205,8 @@ def _seed_tenant(conn: psycopg.Connection, slug: str) -> TenantSeed:
     )
     t.rows["prompt_templates"] = ins(
         "insert into public.prompt_templates (tenant_id, kind, name, version, system_prompt, user_template,"
-        " model, is_active) values (%s, 'email_gen', 'default', 1,"
-        " 'Write a cold email. You must NOT add a sign-off.', '{{first_name}}', 'gpt-4o', true) returning id",
+        " model, is_active) values (%s, 'email_step', 'default', 1,"
+        " 'Write a cold email. You must NOT add a sign-off.', '{{first_name}}', 'gpt-5.5', true) returning id",
         [tid],
     )
     t.rows["campaigns"] = ins(
@@ -229,10 +229,15 @@ def _seed_tenant(conn: psycopg.Connection, slug: str) -> TenantSeed:
         " reason) values (%s, %s, %s, %s, '{}', 'exists_in_tenant') returning id",
         [tid, t.rows["lead_imports"], t.rows["leads"], f"lee@{slug}-prospect.com"],
     )
-    t.rows["generated_emails"] = ins(
-        "insert into public.generated_emails (tenant_id, lead_id, campaign_id, subject, body, personalization_1,"
-        " prompt_template_id, prompt_version, model, status) values (%s, %s, %s, 'Hi', 'Body',"
-        " 'Saw https://example.com', %s, 1, 'gpt-4o', 'ok') returning id",
+    t.rows["campaign_steps"] = ins(
+        "insert into public.campaign_steps (tenant_id, campaign_id, step, delay_days, angle)"
+        " values (%s, %s, 1, 0, 'hook and soft CTA') returning id",
+        [tid, t.rows["campaigns"]],
+    )
+    t.rows["lead_messages"] = ins(
+        "insert into public.lead_messages (tenant_id, lead_id, campaign_id, step, channel, subject, body,"
+        " prompt_template_id, prompt_version, model, status) values (%s, %s, %s, 1, 'email', 'Hi',"
+        " 'Saw https://example.com', %s, 1, 'gpt-5.5', 'ok') returning id",
         [tid, t.rows["leads"], t.rows["campaigns"], t.rows["prompt_templates"]],
     )
     t.webhook_token = f"tok_{slug}_{uuid.uuid4().hex}"
@@ -251,6 +256,17 @@ def _seed_tenant(conn: psycopg.Connection, slug: str) -> TenantSeed:
         " provider_message_id, inbound_body, intent, confidence) values (%s, %s, %s, %s, 'email', 'msg-1',"
         " 'Sounds good', 'interested', 0.9) returning id",
         [tid, t.rows["leads"], t.rows["campaigns"], t.rows["webhook_events"]],
+    )
+    t.rows["bookings"] = ins(
+        "insert into public.bookings (tenant_id, campaign_id, lead_id, webhook_event_id, external_id, invitee_email)"
+        " values (%s, %s, %s, %s, %s, %s) returning id",
+        [tid, t.rows["campaigns"], t.rows["leads"], t.rows["webhook_events"], f"inv-{slug}",
+         f"lee@{slug}-prospect.com"],
+    )
+    t.rows["campaign_reports"] = ins(
+        "insert into public.campaign_reports (tenant_id, campaign_id, period_start, period_end)"
+        " values (%s, %s, '2026-11-09', '2026-11-15') returning id",
+        [tid, t.rows["campaigns"]],
     )
     t.rows["usage_logs"] = ins(
         "insert into public.usage_logs (tenant_id, kind, provider, model, prompt_tokens, completion_tokens)"

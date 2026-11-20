@@ -9,7 +9,7 @@ import psycopg
 import pytest
 from psycopg import errors, sql
 
-from .conftest import ROLE_RANK, ROLES, Seed, as_role, as_user, as_worker, scalar, token_hash
+from .conftest import ROLE_RANK, ROLES, Seed, TenantSeed, as_role, as_user, as_worker, scalar, token_hash
 
 # Minimum role needed to READ each tenant table.
 READ_ROLE = {
@@ -21,7 +21,10 @@ READ_ROLE = {
     "lead_imports": "viewer",
     "leads": "viewer",
     "lead_duplicates": "viewer",
-    "generated_emails": "viewer",
+    "lead_messages": "viewer",
+    "campaign_steps": "viewer",
+    "bookings": "viewer",
+    "campaign_reports": "viewer",
     "webhook_endpoints": "admin",
     "webhook_events": "admin",
     "replies": "viewer",
@@ -38,11 +41,12 @@ UPDATABLE = {
     "campaigns": "name",
     "leads": "title",
     "lead_duplicates": "resolution",
-    "generated_emails": "subject",
+    "lead_messages": "subject",
+    "campaign_steps": "angle",
     "replies": "draft_body",
     "webhook_endpoints": "revoked_at",
 }
-DELETABLE = ["memberships", "integrations", "sender_identities", "campaigns", "leads"]
+DELETABLE = ["memberships", "integrations", "sender_identities", "campaigns", "leads", "campaign_steps"]
 
 
 # ---------------------------------------------------------------------------
@@ -403,42 +407,93 @@ def test_prompt_must_state_prohibitions(conn: psycopg.Connection, seed: Seed) ->
         with pytest.raises(errors.CheckViolation):
             c.execute(
                 "insert into public.prompt_templates (kind, name, version, system_prompt, user_template, model)"
-                " values ('email_gen', 'loose', 1, 'Write an email.', '', 'gpt-4o')"
-            )
-
-
-@pytest.mark.parametrize("n", [2, 3, 4, 5])
-def test_follow_ups_cannot_contain_links(conn: psycopg.Connection, seed: Seed, n: int) -> None:
-    col = sql.Identifier(f"personalization_{n}")
-    with as_user(conn, seed.a.users["member"], seed.a.id) as c:
-        with pytest.raises(errors.CheckViolation):
-            c.execute(
-                sql.SQL("update public.generated_emails set {} = 'book here: www.cal.com/x' where id = %s").format(col),
-                [seed.a.rows["generated_emails"]],
+                " values ('email_step', 'loose', 1, 'Write an email.', '', 'gpt-5.5')"
             )
 
 
 SIGNATURE = '<img src="https://cdn.example.com/sig.png" width="600" alt="Email Signature" />'
 
 
+def _insert_message(
+    c: psycopg.Connection, t: TenantSeed, step: int, body: str, channel: str = "email", subject: str | None = "Re"
+) -> None:
+    c.execute(
+        "insert into public.lead_messages (lead_id, campaign_id, step, channel, subject, body,"
+        " prompt_template_id, prompt_version, model, status)"
+        " values (%s, %s, %s, %s, %s, %s, %s, 1, 'gpt-5.5', 'ok')",
+        [t.rows["leads"], t.rows["campaigns"], step, channel, subject, body, t.rows["prompt_templates"]],
+    )
+
+
 @pytest.mark.parametrize("n", [2, 3, 4, 5])
-def test_follow_ups_reject_anchor_tags(conn: psycopg.Connection, seed: Seed, n: int) -> None:
-    col = sql.Identifier(f"personalization_{n}")
+@pytest.mark.parametrize(
+    "body", ["book here: www.cal.com/x", '<p>See <a href="/case-study">the breakdown</a></p>', "https://x.io"]
+)
+def test_follow_ups_cannot_contain_links(conn: psycopg.Connection, seed: Seed, n: int, body: str) -> None:
+    with as_worker(conn, seed.a.id) as c:
+        with pytest.raises(errors.CheckViolation):
+            _insert_message(c, seed.a, n, body)
+
+
+def test_follow_ups_may_carry_signature_image(conn: psycopg.Connection, seed: Seed) -> None:
+    with as_worker(conn, seed.a.id) as c:
+        _insert_message(c, seed.a, 2, f"<p>Quick follow-up.</p>{SIGNATURE}")
+        _insert_message(c, seed.a, 5, SIGNATURE)
+
+
+def test_member_cannot_edit_a_link_into_a_follow_up(conn: psycopg.Connection, seed: Seed) -> None:
+    claims = json.dumps({"sub": str(seed.a.users["member"]), "tenant_id": str(seed.a.id)})
+    with as_worker(conn, seed.a.id) as c:
+        _insert_message(c, seed.a, 3, "<p>Fresh angle.</p>")
+        c.execute("reset role")
+        c.execute("set local role authenticated")
+        c.execute("select set_config('request.jwt.claims', %s, true)", [claims])
+        with pytest.raises(errors.CheckViolation):
+            c.execute("update public.lead_messages set body = 'Grab a slot: https://cal.com/x' where step = 3")
+
+
+def test_linkedin_messages_have_no_subject_and_short_requests(conn: psycopg.Connection, seed: Seed) -> None:
+    with as_worker(conn, seed.a.id) as c:
+        with pytest.raises(errors.CheckViolation):
+            _insert_message(c, seed.a, 1, "x" * 201, channel="linkedin", subject=None)
+    with as_worker(conn, seed.a.id) as c:
+        with pytest.raises(errors.CheckViolation):
+            _insert_message(c, seed.a, 2, "Thanks for connecting", channel="linkedin", subject="Hi")
+    with as_worker(conn, seed.a.id) as c:
+        lead = scalar(
+            c,
+            "insert into public.leads (campaign_id, email) values (%s, 'new@lead.com') returning id",
+            [seed.a.rows["campaigns"]],
+        )
+        c.execute(
+            "insert into public.lead_messages (lead_id, campaign_id, step, channel, body, prompt_template_id,"
+            " prompt_version, model) values (%s, %s, 1, 'linkedin', %s, %s, 1, 'gpt-5.5')",
+            [lead, seed.a.rows["campaigns"], "x" * 200, seed.a.rows["prompt_templates"]],
+        )
+
+
+@pytest.mark.parametrize(
+    "assignment",
+    ["send_from = '18:00', send_to = '09:00'", "sending_days = '{funday}'", "sending_days = '{}'", "daily_limit = 0"],
+)
+def test_campaign_schedule_is_validated(conn: psycopg.Connection, seed: Seed, assignment: str) -> None:
     with as_user(conn, seed.a.users["member"], seed.a.id) as c:
         with pytest.raises(errors.CheckViolation):
-            c.execute(
-                sql.SQL("update public.generated_emails set {} = %s where id = %s").format(col),
-                ['<p>See <a href="/case-study">the breakdown</a></p>', seed.a.rows["generated_emails"]],
-            )
+            c.execute(f"update public.campaigns set {assignment} where id = %s", [seed.a.rows["campaigns"]])
 
 
-def test_follow_ups_allow_signature_image(conn: psycopg.Connection, seed: Seed) -> None:
-    with as_user(conn, seed.a.users["member"], seed.a.id) as c:
-        updated = c.execute(
-            "update public.generated_emails set personalization_2 = %s, personalization_5 = %s where id = %s",
-            [f"<p>Quick follow-up.</p>{SIGNATURE}", SIGNATURE, seed.a.rows["generated_emails"]],
-        ).rowcount
-    assert updated == 1
+@pytest.mark.parametrize("column", ["launch_status", "heyreach_list_id"])
+def test_clients_cannot_set_launch_state(conn: psycopg.Connection, seed: Seed, column: str) -> None:
+    with as_user(conn, seed.a.users["owner"], seed.a.id) as c:
+        with pytest.raises(errors.InsufficientPrivilege):
+            c.execute(sql.SQL("update public.campaigns set {} = null").format(sql.Identifier(column)))
+
+
+@pytest.mark.parametrize("table", ["bookings", "campaign_reports", "lead_messages"])
+def test_worker_owned_tables_reject_client_inserts(conn: psycopg.Connection, seed: Seed, table: str) -> None:
+    with as_user(conn, seed.a.users["owner"], seed.a.id) as c:
+        with pytest.raises(errors.InsufficientPrivilege):
+            c.execute(sql.SQL("insert into public.{} default values").format(sql.Identifier(table)))
 
 
 @pytest.mark.parametrize(
