@@ -1,11 +1,12 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 
 import { api, errorMessage, ROLE_RANK, type Billing, type Me, type Membership, type Role } from "./api";
 import { supabase } from "./supabase";
+import { SkeletonShell } from "@/components/Skeleton";
 
 type WorkspaceState = {
   me: Me;
@@ -17,8 +18,12 @@ type WorkspaceState = {
   switchTo: (tenantId: string) => Promise<void>;
   create: (name: string, slug: string) => Promise<void>;
   signOut: () => Promise<void>;
-  toast: (message: string) => void;
+  /** "error" stays longer, can be dismissed and is announced at once. */
+  toast: (message: string, tone?: ToastTone) => void;
 };
+
+type ToastTone = "done" | "error";
+type Toast = { id: number; message: string; tone: ToastTone; leaving: boolean };
 
 const WorkspaceContext = createContext<WorkspaceState | null>(null);
 
@@ -48,12 +53,27 @@ export function WorkspaceProvider({
 }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastState, setToastState] = useState<Toast | null>(null);
+  const toastTimers = useRef<number[]>([]);
 
-  const toast = useCallback((message: string) => {
-    setToastMessage(message);
-    window.setTimeout(() => setToastMessage((current) => (current === message ? null : current)), 2600);
+  // Hide fades out first; only the toast that set the timer may clear it.
+  const hideToast = useCallback((id: number) => {
+    setToastState((current) => (current?.id === id ? { ...current, leaving: true } : current));
+    toastTimers.current.push(
+      window.setTimeout(() => setToastState((current) => (current?.id === id ? null : current)), 160),
+    );
   }, []);
+
+  const toast = useCallback(
+    (message: string, tone: ToastTone = "done") => {
+      const id = Date.now();
+      setToastState({ id, message, tone, leaving: false });
+      toastTimers.current.push(window.setTimeout(() => hideToast(id), tone === "error" ? 7000 : 2800));
+    },
+    [hideToast],
+  );
+
+  useEffect(() => () => toastTimers.current.forEach(window.clearTimeout), []);
 
   const activate = useCallback(async (tenantId: string) => {
     await api("/v1/session/active-tenant", { method: "POST", body: JSON.stringify({ tenant_id: tenantId }) });
@@ -152,13 +172,7 @@ export function WorkspaceProvider({
     };
   }, [phase, refreshBilling, switchTo, create, signOut, toast]);
 
-  if (phase.kind === "loading") {
-    return (
-      <div className="center" aria-busy="true">
-        <p className="muted">Opening your workspace…</p>
-      </div>
-    );
-  }
+  if (phase.kind === "loading") return <SkeletonShell />;
   if (phase.kind === "error") {
     return (
       <div className="center">
@@ -182,9 +196,19 @@ export function WorkspaceProvider({
   return (
     <WorkspaceContext.Provider value={value}>
       {children}
-      {toastMessage && (
-        <div className="toast" role="status">
-          {toastMessage}
+      {toastState && (
+        <div
+          key={toastState.id}
+          className={`toast toast-${toastState.tone}${toastState.leaving ? " is-leaving" : ""}`}
+          role={toastState.tone === "error" ? "alert" : "status"}
+        >
+          <span className="toast-dot" aria-hidden="true" />
+          <span>{toastState.message}</span>
+          {toastState.tone === "error" && (
+            <button className="toast-close" aria-label="Dismiss" onClick={() => hideToast(toastState.id)}>
+              ×
+            </button>
+          )}
         </div>
       )}
     </WorkspaceContext.Provider>

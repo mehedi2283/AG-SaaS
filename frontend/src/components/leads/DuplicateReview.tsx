@@ -25,7 +25,7 @@ export function DuplicateReview({ importId, onResolved }: { importId: string; on
   }, [importId]);
 
   useEffect(() => {
-    void load().catch((e) => toast(errorMessage(e)));
+    void load().catch((e) => toast(errorMessage(e), "error"));
   }, [load, toast]);
 
   async function resolve(resolution: Resolution, ids?: string[]) {
@@ -45,7 +45,7 @@ export function DuplicateReview({ importId, onResolved }: { importId: string; on
       await load();
       onResolved();
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     } finally {
       setBusy(false);
     }

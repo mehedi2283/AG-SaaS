@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { api, errorMessage, type Campaign, type Step } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace";
+import { SkeletonRows } from "@/components/Skeleton";
 
 /** The sequence: one row per message, each with its own angle and wait. */
 export function StepsEditor({ campaign }: { campaign: Campaign }) {
@@ -14,7 +15,7 @@ export function StepsEditor({ campaign }: { campaign: Campaign }) {
   const locked = campaign.launch_status !== "not_launched" || !can("member");
 
   useEffect(() => {
-    api<Step[]>(`/v1/campaigns/${campaign.id}/steps`).then(setSteps).catch((e) => toast(errorMessage(e)));
+    api<Step[]>(`/v1/campaigns/${campaign.id}/steps`).then(setSteps).catch((e) => toast(errorMessage(e), "error"));
   }, [campaign.id, toast]);
 
   function change(index: number, patch: Partial<Step>) {
@@ -30,13 +31,13 @@ export function StepsEditor({ campaign }: { campaign: Campaign }) {
       setDirty(false);
       toast("Sequence saved");
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     } finally {
       setBusy(false);
     }
   }
 
-  if (!steps) return <p className="muted">Loading…</p>;
+  if (!steps) return <SkeletonRows rows={5} />;
   let day = 0;
   return (
     <div>

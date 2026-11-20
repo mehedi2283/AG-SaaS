@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api, errorMessage, type Campaign, type Message, type MessagePage } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace";
+import { SkeletonLetters } from "@/components/Skeleton";
 
 const PAGE = 30;
 
@@ -20,7 +21,7 @@ export function Messages({ campaign, refreshKey }: { campaign: Campaign; refresh
     try {
       setPage(await api<MessagePage>(`/v1/campaigns/${campaign.id}/messages?${params}`));
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     }
   }, [campaign.id, onlyFailed, offset, toast]);
 
@@ -28,7 +29,7 @@ export function Messages({ campaign, refreshKey }: { campaign: Campaign; refresh
     void load();
   }, [load, refreshKey]);
 
-  if (!page) return <p className="muted">Loading…</p>;
+  if (!page) return <SkeletonLetters />;
 
   // Group by buyer, keeping step order.
   const byLead = new Map<string, Message[]>();
@@ -170,7 +171,7 @@ function Rewrite({ leadId, onDone }: { leadId: string; onDone: () => Promise<voi
           toast("Rewriting this buyer's messages");
           await onDone();
         } catch (e) {
-          toast(errorMessage(e));
+          toast(errorMessage(e), "error");
         } finally {
           setBusy(false);
         }

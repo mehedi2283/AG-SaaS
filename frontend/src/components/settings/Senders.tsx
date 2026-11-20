@@ -37,7 +37,7 @@ export function Senders() {
     try {
       setSenders(await api<Sender[]>("/v1/sender-identities"));
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     }
   }, [toast]);
 

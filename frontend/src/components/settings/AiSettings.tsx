@@ -33,7 +33,7 @@ export function AiSettings() {
       setSettings(await api<Settings>("/v1/workspace/ai-settings", { method: "PATCH", body: JSON.stringify(change) }));
       toast(message);
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     } finally {
       setSaving(false);
     }

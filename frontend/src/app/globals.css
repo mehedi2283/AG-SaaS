@@ -367,13 +367,43 @@ label.btn.is-busy { opacity: 0.55; pointer-events: none; }
 .report header { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .report-summary { max-width: 68ch; line-height: 1.6; }
 
-/* ---------- toast ---------- */
-.toast {
-  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
-  padding: 10px 16px; border-radius: var(--radius); background: var(--ink); color: #fff;
-  font-size: var(--t-14); z-index: 20; animation: toast-in 0.18s ease-out;
+/* ---------- skeletons ---------- */
+/* Quiet: hairline-coloured bars that breathe; they appear only if loading takes longer than a blink. */
+.sk { opacity: 0; animation: sk-in 0.2s ease-out 0.15s forwards; }
+.sk-bar {
+  display: block; max-width: 100%; border-radius: 4px; background: var(--rule);
+  animation: sk-breathe 1.6s ease-in-out infinite;
 }
-@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
+.sk-head { display: grid; gap: 14px; margin-bottom: 40px; }
+.sk-row { display: flex; justify-content: space-between; align-items: center; gap: 24px; min-height: 64px; border-bottom: 1px solid var(--rule); }
+.sk-stack { display: grid; gap: 8px; flex: 1; }
+.sk-thread { display: grid; gap: 14px; padding: 20px 0; border-bottom: 1px solid var(--rule); }
+.sk-letter { display: grid; gap: 10px; padding-left: 16px; border-left: 2px solid var(--rule); max-width: 68ch; }
+.sk-rail { display: grid; gap: 18px; margin-top: 18px; padding: 0 10px; }
+.sk-rail .sk-bar:first-child { margin-bottom: 4px; border-radius: var(--radius); background: #efeef3; }
+@keyframes sk-in { to { opacity: 1; } }
+@keyframes sk-breathe { 50% { opacity: 0.55; } }
+
+/* ---------- toast ---------- */
+/* Bottom-left, in line with the content. The dot says what happened: green done, red needs attention. */
+.toast {
+  position: fixed; left: calc(240px + var(--gutter)); bottom: 28px; z-index: 20;
+  display: flex; align-items: center; gap: 10px; max-width: min(460px, calc(100vw - 280px - var(--gutter)));
+  padding: 11px 14px 11px 16px; border-radius: var(--radius); background: var(--ink); color: #fff;
+  font-size: var(--t-14); box-shadow: 0 10px 28px rgb(30 27 38 / 0.18);
+  animation: toast-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.toast.is-leaving { animation: toast-out 0.16s ease-in forwards; }
+.toast-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: #5fd39a; }
+.toast-error .toast-dot { background: #ff8f84; }
+.toast-close {
+  margin: -4px -6px -4px 4px; width: 26px; height: 26px; flex: none; border: 0; border-radius: 5px;
+  background: none; color: #b9b5c6; font-size: 18px; line-height: 1; cursor: pointer;
+}
+.toast-close:hover { color: #fff; background: rgb(255 255 255 / 0.1); }
+.toast-close:focus-visible { outline-color: #fff; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px); } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(6px); } }
 
 @media (max-width: 860px) {
   :root { --gutter: 20px; }
@@ -390,5 +420,12 @@ label.btn.is-busy { opacity: 0.55; pointer-events: none; }
   .row-main { grid-template-columns: 1fr; }
   .facts { grid-template-columns: 1fr; gap: 2px; }
   .facts dd { margin-bottom: 10px; }
+  .toast { left: 16px; right: 16px; bottom: 16px; max-width: none; }
+  .sk-rail { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .toast { animation: none; } .btn { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .toast, .toast.is-leaving { animation: none; }
+  .sk { animation: none; opacity: 1; }
+  .sk-bar { animation: none; }
+  .btn { transition: none; }
+}

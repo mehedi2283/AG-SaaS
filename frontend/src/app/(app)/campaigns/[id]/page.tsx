@@ -14,6 +14,7 @@ import { ImportPanel } from "@/components/leads/ImportPanel";
 import { LeadsTable } from "@/components/leads/LeadsTable";
 import { api, errorMessage, type Campaign } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace";
+import { SkeletonPage } from "@/components/Skeleton";
 
 type Tab = "sequence" | "leads" | "messages" | "reports" | "settings";
 
@@ -64,7 +65,7 @@ export default function CampaignPage() {
       </div>
     );
   }
-  if (!campaign) return <div className="page muted">Loading…</div>;
+  if (!campaign) return <SkeletonPage />;
 
   return (
     <div className="page page-wide">
@@ -138,7 +139,7 @@ export default function CampaignPage() {
                     await api(`/v1/campaigns/${campaign.id}`, { method: "DELETE" });
                     router.push("/campaigns");
                   } catch (e) {
-                    toast(errorMessage(e));
+                    toast(errorMessage(e), "error");
                   }
                 }}
               >

@@ -14,7 +14,7 @@ export default function LeadsPage() {
   useEffect(() => {
     api<Campaign[]>("/v1/campaigns")
       .then(setCampaigns)
-      .catch((e) => toast(errorMessage(e)));
+      .catch((e) => toast(errorMessage(e), "error"));
   }, [toast]);
 
   const pending = campaigns?.filter((c) => c.counts.pending_duplicates > 0) ?? [];

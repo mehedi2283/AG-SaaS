@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { CHANNEL_LABEL, campaignState } from "@/components/campaigns/labels";
 import { api, errorMessage, type Campaign } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace";
+import { SkeletonRows } from "@/components/Skeleton";
 
 export default function CampaignsPage() {
   const { can } = useWorkspace();
@@ -82,7 +83,7 @@ export default function CampaignsPage() {
           </tbody>
         </table>
       )}
-      {!campaigns && !error && <p className="muted">Loading…</p>}
+      {!campaigns && !error && <SkeletonRows rows={4} />}
     </div>
   );
 }

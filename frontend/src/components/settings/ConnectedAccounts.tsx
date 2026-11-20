@@ -48,7 +48,7 @@ export function ConnectedAccounts() {
       toast(`Disconnected ${PROVIDERS[provider].name}`);
       await load();
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     }
   }
 

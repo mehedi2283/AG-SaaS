@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { formatDate } from "@/components/billing/Billing";
 import { api, errorMessage } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace";
+import { SkeletonRows } from "@/components/Skeleton";
 
 type Report = {
   id: string;
@@ -35,10 +36,10 @@ export function Reports({ campaignId, recipients }: { campaignId: string; recipi
   useEffect(() => {
     api<Report[]>(`/v1/reports?campaign_id=${campaignId}`)
       .then(setReports)
-      .catch((e) => toast(errorMessage(e)));
+      .catch((e) => toast(errorMessage(e), "error"));
   }, [campaignId, toast]);
 
-  if (!reports) return <p className="muted">Loading…</p>;
+  if (!reports) return <SkeletonRows rows={3} />;
   return (
     <div>
       <p className="muted small" style={{ marginBottom: 20 }}>

@@ -46,7 +46,7 @@ export function WebhookAddresses() {
       toast(done);
       await load();
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     } finally {
       setBusy(null);
     }

@@ -65,3 +65,10 @@ Changes from the prototype, decided before building:
 Review against generic defaults: white + violet is common for SaaS, so the identity has to come from the
 letter treatment and the restraint, not colour. Cut from the first sketch: a coloured header band on
 settings, icon badges beside every provider, and a stat strip on the replies page. They added noise.
+
+## Loading and toasts (2026-11-21)
+- Loading is shown as skeletons shaped like the screen (`components/Skeleton.tsx`): hairline rows, letter lines beside
+  the message rule. Rule-coloured bars that breathe, no shimmer; they fade in after 0.15s so fast loads don't flash.
+  `app/(app)/loading.tsx` shows one the moment a menu item is clicked.
+- Toasts sit bottom-left in line with the content. A dot carries the meaning (green done, red needs attention);
+  `toast(message, "error")` stays 7s, can be dismissed and uses role="alert".

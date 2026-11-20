@@ -192,7 +192,7 @@ export function BillingBanner() {
             const path = billing.status === "canceled" ? "/v1/billing/checkout" : "/v1/billing/portal";
             void goToStripe(path).catch((e) => {
               setBusy(false);
-              toast(errorMessage(e));
+              toast(errorMessage(e), "error");
             });
           }}
         >

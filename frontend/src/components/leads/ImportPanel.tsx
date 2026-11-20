@@ -38,7 +38,7 @@ export function ImportPanel({ campaignId, onImported }: { campaignId: string; on
   }, [campaignId]);
 
   useEffect(() => {
-    void load().catch((e) => toast(errorMessage(e)));
+    void load().catch((e) => toast(errorMessage(e), "error"));
   }, [load, toast]);
 
   // Follow running imports until they finish.
@@ -60,7 +60,7 @@ export function ImportPanel({ campaignId, onImported }: { campaignId: string; on
       toast(`Importing ${file.name}`);
       await load();
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     } finally {
       setUploading(false);
       if (input.current) input.current.value = "";

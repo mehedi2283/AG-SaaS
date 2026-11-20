@@ -69,7 +69,7 @@ export function BillingSection() {
             setBusy(true);
             void goToStripe("/v1/billing/portal").catch((e) => {
               setBusy(false);
-              toast(errorMessage(e));
+              toast(errorMessage(e), "error");
             });
           }}
         >
@@ -108,7 +108,7 @@ function Allowance({ billing, onChanged }: { billing: Billing; onChanged?: () =>
       }
       toast(add ? `Added ${label}` : `Removed ${label}`);
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     } finally {
       setPending(null);
     }

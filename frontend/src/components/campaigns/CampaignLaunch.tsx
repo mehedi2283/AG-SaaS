@@ -26,7 +26,7 @@ export function CampaignLaunch({ campaign, onChanged }: { campaign: Campaign; on
       toast(message);
       onChanged();
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     } finally {
       setBusy(false);
     }

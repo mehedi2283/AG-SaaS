@@ -13,6 +13,7 @@ import {
   type Role,
 } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace";
+import { SkeletonRows } from "@/components/Skeleton";
 
 type Tab = "workspaces" | "users" | "activity";
 
@@ -111,7 +112,7 @@ export default function AdminPage() {
       {tab === "workspaces" && tenants && <Workspaces tenants={tenants} onChanged={load} />}
       {tab === "users" && users && <People users={users} onChanged={load} />}
       {tab === "activity" && activity && <Activity rows={activity} />}
-      {!error && !tenants && <p className="muted">Loading…</p>}
+      {!error && !tenants && <SkeletonRows />}
     </div>
   );
 }
@@ -209,7 +210,7 @@ function WorkspaceDetail({ tenant: t, onChanged }: { tenant: AdminTenant; onChan
     try {
       setMembers(await api<AdminMember[]>(`/v1/admin/tenants/${t.id}/members`));
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     }
   }, [t.id, toast]);
 
@@ -224,7 +225,7 @@ function WorkspaceDetail({ tenant: t, onChanged }: { tenant: AdminTenant; onChan
       toast(message);
       await Promise.all([onChanged(), loadMembers()]);
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     } finally {
       setBusy(false);
     }
@@ -238,7 +239,7 @@ function WorkspaceDetail({ tenant: t, onChanged }: { tenant: AdminTenant; onChan
       <div className="detail-col">
         <h3 className="row-name">People</h3>
         {!members ? (
-          <p className="muted small">Loading…</p>
+          <SkeletonRows rows={2} />
         ) : (
           <ul className="plain-list">
             {members.map((m) => (
@@ -400,7 +401,7 @@ function People({ users, onChanged }: { users: AdminUser[]; onChanged: () => Pro
       toast(enabled ? `${u.email} can sign in again` : `${u.email} can no longer sign in`);
       await onChanged();
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     } finally {
       setBusy(null);
     }

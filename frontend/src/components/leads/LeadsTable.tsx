@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { LEAD_STATUS_LABEL } from "@/components/campaigns/labels";
 import { api, errorMessage, type Campaign, type Lead, type LeadPage } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace";
+import { SkeletonRows } from "@/components/Skeleton";
 
 const PAGE = 50;
 
@@ -34,7 +35,7 @@ export function LeadsTable({
     try {
       setPage(await api<LeadPage>(`/v1/leads?${params}`));
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     }
   }, [campaign, status, query, offset, toast]);
 
@@ -59,7 +60,7 @@ export function LeadsTable({
       toast(blocked ? `${lead.email} won't be contacted` : `${lead.email} can be contacted again`);
       await load();
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     }
   }
 
@@ -175,7 +176,7 @@ export function LeadsTable({
           </div>
         </>
       )}
-      {!page && <p className="muted">Loading…</p>}
+      {!page && <SkeletonRows />}
     </div>
   );
 }

@@ -46,7 +46,7 @@ export default function RepliesPage() {
       setPage(next);
       setSelected((current) => (current && next.items.some((r) => r.id === current) ? current : next.items[0]?.id ?? null));
     } catch (e) {
-      toast(errorMessage(e));
+      toast(errorMessage(e), "error");
     }
   }, [view, toast]);
 
