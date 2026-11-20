@@ -71,7 +71,10 @@ class CampaignUpdate(_Schedule):
 
 class CampaignCounts(BaseModel):
     leads: int
-    ready: int  # leads with every step written and approved
+    new: int  # not written yet
+    generating: int
+    ready: int  # every step written, not yet pushed
+    failed_messages: int
     pushed: int
     replied: int
     pending_duplicates: int

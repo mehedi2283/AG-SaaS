@@ -193,7 +193,17 @@ export type Campaign = {
   daily_limit: number;
   sender_identity_id: string | null;
   sequence_count: number;
-  counts: { leads: number; ready: number; pushed: number; replied: number; pending_duplicates: number; bookings: number };
+  counts: {
+    leads: number;
+    new: number;
+    generating: number;
+    ready: number;
+    failed_messages: number;
+    pushed: number;
+    replied: number;
+    pending_duplicates: number;
+    bookings: number;
+  };
   created_at: string;
   updated_at: string;
 };
@@ -268,3 +278,23 @@ export type LeadPage = { items: Lead[]; total: number };
 export async function uploadFile<T>(path: string, file: File): Promise<T> {
   return api<T>(path, { method: "POST", body: file, headers: { "content-type": file.type || "text/csv" } });
 }
+
+export type Message = {
+  id: string;
+  lead_id: string;
+  lead_email: string;
+  lead_name: string | null;
+  lead_company: string | null;
+  step: number;
+  channel: Channel;
+  subject: string | null;
+  body: string | null;
+  status: "pending" | "ok" | "failed" | "approved" | "pushed";
+  validation_errors: string[];
+  error_code: string | null;
+  model: string;
+  prompt_version: number;
+  updated_at: string;
+};
+
+export type MessagePage = { items: Message[]; total: number };

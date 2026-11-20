@@ -307,6 +307,22 @@ label.btn.is-busy { opacity: 0.55; pointer-events: none; }
   .dup { flex-direction: column; align-items: flex-start; }
 }
 
+/* ---------- campaign: next step, messages ---------- */
+.next-step {
+  display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap;
+  padding: 18px 20px; margin-bottom: 28px; border-radius: var(--radius); background: var(--rail);
+}
+.next-step p + p { margin-top: 2px; }
+.thread { padding: 20px 0; border-bottom: 1px solid var(--rule); display: grid; gap: 14px; }
+.thread-head .row-name, .thread-head .row-desc { display: block; }
+.message { padding-left: 16px; border-left: 2px solid var(--rule); display: grid; gap: 6px; max-width: 68ch; }
+.message-failed { border-left-color: var(--danger); }
+.message-meta { display: flex; gap: 12px; align-items: baseline; }
+.message-subject { font-weight: 600; }
+.message-body { white-space: pre-wrap; }
+.message-edit { display: grid; gap: 8px; }
+.letter-input { font-family: var(--serif); font-size: 1rem; }
+
 /* ---------- toast ---------- */
 .toast {
   position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);

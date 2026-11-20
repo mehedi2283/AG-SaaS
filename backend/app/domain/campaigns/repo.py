@@ -7,7 +7,11 @@ import asyncpg
 
 _COUNTS = """
   (select count(*) from public.leads l where l.campaign_id = c.id)::int as leads,
+  (select count(*) from public.leads l where l.campaign_id = c.id and l.status = 'new')::int as new,
+  (select count(*) from public.leads l where l.campaign_id = c.id and l.status = 'generating')::int as generating,
   (select count(*) from public.leads l where l.campaign_id = c.id and l.status = 'ready')::int as ready,
+  (select count(*) from public.lead_messages m where m.campaign_id = c.id and m.status = 'failed')::int
+    as failed_messages,
   (select count(*) from public.leads l where l.campaign_id = c.id and l.status in ('pushed', 'replied'))::int as pushed,
   (select count(*) from public.leads l where l.campaign_id = c.id and l.status = 'replied')::int as replied,
   (select count(*) from public.lead_duplicates d join public.lead_imports i on i.id = d.import_id
@@ -20,7 +24,17 @@ _FIELDS = (
     " c.offer_details, c.attachment_url, c.report_emails, c.timezone, c.sending_days, c.send_from, c.send_to,"
     " c.daily_limit, c.sender_identity_id, c.created_at, c.updated_at"
 )
-COUNT_KEYS = ("leads", "ready", "pushed", "replied", "pending_duplicates", "bookings")
+COUNT_KEYS = (
+    "leads",
+    "new",
+    "generating",
+    "ready",
+    "failed_messages",
+    "pushed",
+    "replied",
+    "pending_duplicates",
+    "bookings",
+)
 
 
 async def list_campaigns(conn: asyncpg.Connection) -> list[asyncpg.Record]:
