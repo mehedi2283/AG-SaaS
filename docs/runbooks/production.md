@@ -26,7 +26,25 @@ In its `.env`:
 - turn on Gazi's access-token hook:
   `GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_ENABLED=true` and
   `GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_URI=pg-functions://postgres/app/custom_access_token_hook`;
-- set up email sending for sign-up confirmation and password resets (`SMTP_*`).
+- set up email sending for sign-up confirmation and password resets (`SMTP_*`);
+- make new accounts confirm their email: `ENABLE_EMAIL_AUTOCONFIRM=false`.
+
+Then lock it down in Supabase's `docker-compose.yml`:
+
+- **Ports.** Gazi's Nginx reaches Supabase over the Docker network, so nothing of Supabase needs to be public.
+  Docker opens published ports past the `ufw` firewall, so a firewall alone does not help. Under the `kong` and
+  `supavisor` services, put `127.0.0.1:` in front of every port, for example
+  `- 127.0.0.1:${KONG_HTTP_PORT}:8000` and `- 127.0.0.1:${POSTGRES_PORT}:5432`. To open Studio or connect to the
+  database from your PC, use an SSH tunnel: `ssh -L 8000:127.0.0.1:8000 you@server`, then http://localhost:8000.
+- **Passwords.** Under the `auth` service's `environment:`, add `GOTRUE_PASSWORD_MIN_LENGTH: 10`.
+
+Also turn on the server firewall for SSH and web only:
+
+```
+ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
+```
+
+Check from your own PC that only 22, 80 and 443 answer (for example `nmap -Pn app.your-domain.com`).
 
 Start it (`docker compose up -d` in `/opt/supabase`), then apply Gazi's database migrations in filename order:
 
@@ -87,6 +105,13 @@ Check: `https://app.your-domain.com/healthz` shows `{"status":"ok"}`, and the si
 - **Instantly / HeyReach / Calendly** (per workspace): each workspace copies its webhook address from
   Settings, Webhook addresses in Gazi into the provider's webhook settings (Instantly: event "reply received").
 - **SendGrid**: verify the sending domain for `GAZI_EMAIL_FROM`.
+- **Rotate the keys the old n8n setup exposed.** The n8n workflows hold the Instantly API key and the old
+  Supabase project's service_role key in plain text.
+  - Instantly: Settings, Integrations, API Keys: create a new key, paste it into Gazi (Settings, Connected
+    accounts, Instantly, Replace key), then delete the old key in Instantly.
+  - Old Supabase project (the one n8n used, not this server): Gazi doesn't use it, so pause or delete it. If
+    you keep it, rotate its JWT secret under Project Settings, API, so the leaked service_role key stops working.
+  - Then switch off the n8n workflows, or delete those credentials from n8n.
 
 ## 7. Make yourself the superuser
 
