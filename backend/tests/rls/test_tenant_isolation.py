@@ -533,6 +533,39 @@ def test_intent_change_cannot_keep_links(conn: psycopg.Connection, seed: Seed) -
             c.execute("update public.replies set intent = 'not_interested' where id = %s", [rid])
 
 
+def test_reply_without_intent_cannot_carry_links(conn: psycopg.Connection, seed: Seed) -> None:
+    rid = seed.a.rows["replies"]
+    pid = seed.a.rows["prompt_templates"]
+    setup = [
+        f"update public.replies set prompt_template_id = '{pid}', prompt_version = 1, intent = null where id = '{rid}'"
+    ]
+    with as_user(conn, seed.a.users["member"], seed.a.id, setup=setup) as c:
+        with pytest.raises(errors.CheckViolation):
+            c.execute("update public.replies set draft_body = 'Grab a slot: https://cal.com/x' where id = %s", [rid])
+
+
+@pytest.mark.parametrize(
+    ("table", "actor", "stamp", "extra"),
+    [
+        ("replies", "approved_by", "approved_at", "status = status"),
+        ("lead_messages", "approved_by", "approved_at", "status = status"),
+        ("lead_duplicates", "resolved_by", "resolved_at", "resolution = 'skip'"),
+    ],
+)
+def test_approvals_are_signed_by_the_caller(
+    conn: psycopg.Connection, seed: Seed, table: str, actor: str, stamp: str, extra: str
+) -> None:
+    rid = seed.a.rows[table]
+    upd = sql.SQL(
+        "update public.{} set {} = %s, {} = '2000-01-01', {} where id = %s returning {} > '2001-01-01'"
+    ).format(sql.Identifier(table), sql.Identifier(actor), sql.Identifier(stamp), sql.SQL(extra), sql.Identifier(stamp))
+    with as_user(conn, seed.a.users["member"], seed.a.id) as c:
+        with pytest.raises(errors.InsufficientPrivilege):
+            c.execute(upd, [seed.a.users["owner"], rid])
+    with as_user(conn, seed.a.users["member"], seed.a.id) as c:
+        assert scalar(c, upd, [seed.a.users["member"], rid]) is True  # the client's timestamp is ignored
+
+
 def test_signature_image_allowed_on_any_reply(conn: psycopg.Connection, seed: Seed) -> None:
     rid = seed.a.rows["replies"]
     pid = seed.a.rows["prompt_templates"]
