@@ -89,7 +89,15 @@ def create_app(
         for close in reversed(owned):
             await close()
 
-    app = FastAPI(title="Gazi API", version="0.1.0", lifespan=lifespan)
+    public = settings.environment != "production"  # no endpoint map for strangers in production
+    app = FastAPI(
+        title="Gazi API",
+        version="0.1.0",
+        lifespan=lifespan,
+        docs_url="/docs" if public else None,
+        redoc_url="/redoc" if public else None,
+        openapi_url="/openapi.json" if public else None,
+    )
     install_error_handlers(app)
 
     @app.middleware("http")

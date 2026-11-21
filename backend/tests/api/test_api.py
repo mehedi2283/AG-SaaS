@@ -6,7 +6,9 @@ import uuid
 import psycopg
 import pytest
 
+from app.core.config import Settings
 from app.core.crypto import Sealed, aad
+from app.main import create_app
 from tests.api.conftest import Harness, auth, unique_slug
 from tests.rls.conftest import Seed
 
@@ -232,3 +234,10 @@ async def test_calendly_needs_no_campaign(api: Harness, seed: Seed) -> None:
     }
     r = await api.client.post(ep["url_path"], json=body)
     assert r.status_code == 200 and api.queue.jobs[-1]["queue"] == "gazi:sync"
+
+
+def test_api_docs_hidden_in_production(settings: Settings) -> None:
+    assert create_app(settings).openapi_url == "/openapi.json"
+    prod = settings.model_copy(update={"environment": "production"})
+    app = create_app(prod)
+    assert (app.openapi_url, app.docs_url, app.redoc_url) == (None, None, None)
